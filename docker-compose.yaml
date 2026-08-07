@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: 'postgres:16'
+    container_name: lab_manager_db
+    environment:
+      - 'POSTGRES_DB=labmanager'
+      - 'POSTGRES_USER=labmanager'
+      - 'POSTGRES_PASSWORD=labmanager'
+    ports:
+      - '5432:5432'
+    volumes:
+      - lab_manager_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  lab_manager_data:

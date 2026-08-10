@@ -4,6 +4,7 @@ import com.example.lab_manager.enums.ReserveStatus;
 import com.example.lab_manager.model.Reserve;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.lang.ScopedValue;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,5 +24,6 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
     List<Reserve>  findByLaboratoryIdAndDataHoraInicioLessThanAndDataHoraFimGreaterThan(UUID laboratoryId, LocalDateTime dataHora, LocalDateTime dataFim);
 
     List<Reserve> findByEmailConfirmacaoEnviadoFalseAndDataHoraInicioBetween(LocalDateTime dataHora, LocalDateTime dataFim);
+
 
 }

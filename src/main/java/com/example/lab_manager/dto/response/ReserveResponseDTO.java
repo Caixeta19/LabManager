@@ -1,4 +1,4 @@
-package com.example.lab_manager.dto;
+package com.example.lab_manager.dto.response;
 
 import com.example.lab_manager.enums.ReserveStatus;
 import com.example.lab_manager.model.Reserve;

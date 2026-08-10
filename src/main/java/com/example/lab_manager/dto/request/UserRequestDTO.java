@@ -1,4 +1,4 @@
-package com.example.lab_manager.dto;
+package com.example.lab_manager.dto.request;
 
 import com.example.lab_manager.enums.UserType;
 import jakarta.validation.constraints.Email;

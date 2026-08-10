@@ -1,4 +1,4 @@
-package com.example.lab_manager.dto;
+package com.example.lab_manager.dto.request;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;

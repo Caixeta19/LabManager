@@ -50,8 +50,8 @@ o e-mail, o QR Code não funciona. Sem o QR Code, o sistema não sabe se o usuá
 - Cadastro de usuários com papéis distintos (ALUNO, PROFESSOR, ADMIN)
 - Gerenciamento de laboratórios (capacidade, localização, status ativo/inativo)
 - Reserva de laboratórios com validação de conflito de horário
-- Confirmação de reserva por e-mail com link único (tokenConfirmacao)
-- Check-in via QR Code (codigoQr) com janela de horário validada
+- Confirmação de reserva por e-mail com link único (`tokenConfirmacao`)
+- Check-in via QR Code (`codigoQr`) com janela de horário validada
 - Empréstimo de equipamentos com controle de status e devolução
 - Jobs agendados: envio de e-mail 1h antes e marcação de empréstimos atrasados
 - Geração de imagem do QR Code via ZXing
@@ -72,46 +72,75 @@ estável antes de qualquer uma dessas linhas ser tocada.
 
 ## 3. Regras de negócio
 
+### Usuário (User)
+
+- O e-mail é único — não existem dois usuários com o mesmo e-mail.
+- A senha nunca é armazenada em texto puro — sempre criptografada com BCrypt.
+- Usuários não são apagados do banco ao serem desativados (soft delete via `active = false`).
+  Isso preserva o histórico de reservas e empréstimos vinculados.
+
+### Laboratório (Laboratory)
+
+- Laboratórios desativados (`active = false`) não aparecem nas listagens públicas.
+- A desativação é lógica — o registro permanece no banco para integridade referencial.
+
+### Equipamento (Equipment)
+
+- Todo equipamento nasce com status `DISPONIVEL`.
+- Um equipamento só pode ser emprestado se estiver com status `DISPONIVEL`.
+  Tentar emprestar um equipamento `EM_USO` lança `RegraDeNegocioException`.
+- Ao ser emprestado, o status muda para `EM_USO`.
+- Ao ser devolvido, o status volta para `DISPONIVEL`.
+
 ### Reserva (Reserve)
 
-- Uma reserva não pode ter conflito de horário com outra no mesmo laboratório.
-- Na criação, dois campos são gerados automaticamente e de forma independente:
+- O horário de fim deve ser estritamente após o horário de início.
+- Uma reserva não pode ter conflito de horário com outra ativa no mesmo laboratório.
+  Reservas com status `CANCELADA` ou `EXPIRADA` são ignoradas na verificação de conflito.
+- Na criação, dois campos são gerados automaticamente via `@Builder.Default` e de forma independente:
   - `tokenConfirmacao` — usado exclusivamente no link do e-mail de confirmação
   - `codigoQr` — usado exclusivamente no check-in físico via QR Code
-  - **Esses campos nunca devem aparecer nos Response DTOs.**
+  - **Esses campos nunca devem aparecer em nenhum Response DTO.**
 - Transições de status permitidas:
 
 ```
-PENDENTE → CONFIRMADA  (via link do e-mail)
-CONFIRMADA → CANCELADA (cancelamento manual)
-PENDENTE → CANCELADA   (cancelamento sem confirmação)
+PENDENTE → CONFIRMADA   (via link do e-mail)
+PENDENTE → CANCELADA    (cancelamento sem confirmação)
+CONFIRMADA → CANCELADA  (cancelamento manual após confirmação)
 ```
+
+- Reservas canceladas e expiradas são mantidas no banco para histórico.
 
 ### Confirmação por e-mail
 
 - O e-mail deve ser disparado **1 hora antes** do início da reserva.
 - O disparo ocorre **apenas uma vez** por reserva, controlado pelo campo `emailConfirmacaoEnviado`.
-- O link contém o `tokenConfirmacao`, que muda o status da reserva para CONFIRMADA quando acessado.
+  Um segundo ciclo do job não reenvia o e-mail.
+- O link contém o `tokenConfirmacao`. Quando acessado:
+  - Se a reserva estiver `PENDENTE` → muda para `CONFIRMADA` e registra `dataConfirmacao`.
+  - Se já estiver em outro status → lança `RegraDeNegocioException`. O link não pode ser usado duas vezes.
 
 ### Check-in (CheckIn)
 
-- O check-in só pode ser criado se a reserva estiver com status **CONFIRMADA**.
-- O check-in só pode ser criado dentro da **janela de horário** da reserva.
-- Cada reserva tem no máximo um check-in registrado.
+- O check-in só pode ser criado se a reserva estiver com status `CONFIRMADA`.
+  Reserva `PENDENTE` → lança `ReservaNaoConfirmadaException` (422).
+- O check-in só pode ser criado dentro da janela `[dataHoraInicio, dataHoraFim]` da reserva.
+  Fora do horário → lança `RecursoNaoEncontradoException` (404).
+  Não confirmamos a existência da reserva para QR Codes fora do horário.
+- Cada reserva tem no máximo um check-in — campo `reserve_id` é `UNIQUE` no banco.
 
 ### Empréstimo (Loan)
 
-- Um empréstimo só pode ser criado para um equipamento com status **DISPONIVEL**.
-- Ao criar o empréstimo, o status do equipamento muda para **EM_USO**.
-- Ao devolver, o status volta para **DISPONIVEL** e `dataDevolucaoReal` é preenchida.
-- Um job agendado marca automaticamente o empréstimo como **ATRASADO** quando
+- Um empréstimo só pode ser criado para um equipamento com status `DISPONIVEL`.
+- Ao criar o empréstimo, o status do equipamento muda para `EM_USO` atomicamente.
+- Ao devolver, `dataDevolucaoReal` é preenchida e o status do equipamento volta para `DISPONIVEL`.
+- Um job agendado marca automaticamente o empréstimo como `ATRASADO` quando
   `dataDevolucaoPrevista` é ultrapassada sem `dataDevolucaoReal` preenchida.
+  Empréstimos já `ATRASADO` não são reprocessados.
 
 ---
 
 ## 4. Decisões de arquitetura
-
-Registro do porquê de cada escolha.
 
 **ADR-01 — Entity separada de DTO**
 
@@ -125,16 +154,16 @@ Consequência: o mapeamento é feito via método estático `fromEntity()` dentro
 
 **ADR-02 — tokenConfirmacao e codigoQr são campos distintos e jamais expostos**
 
-Os dois campos têm funções completamente diferentes e ciclos de vida diferentes. Nunca
-devem ser unificados e nunca devem aparecer em nenhum Response DTO. Se aparecerem,
-qualquer pessoa com acesso ao JSON pode fazer check-in sem estar presente.
+Os dois campos têm funções completamente diferentes. Nunca devem ser unificados e nunca
+devem aparecer em nenhum Response DTO. Se aparecerem, qualquer pessoa com acesso ao JSON
+pode fazer check-in sem estar presente. Ambos são gerados com `UUID.randomUUID()` via
+`@Builder.Default` — 122 bits de entropia, impossível de adivinhar.
 
 **ADR-03 — Erros de domínio não são RuntimeException genérica**
 
-Cada situação de erro tem uma exceção própria (`HorarioConflitanteException`,
-`RecursoNaoEncontradoException`, `ReservaNaoConfirmadaException`). Um `@RestControllerAdvice`
-global captura e traduz cada uma pro status HTTP correto. Isso mantém os Services limpos de
-código HTTP e os Controllers limpos de lógica de negócio.
+Cada situação de erro tem uma exceção própria. Um `@RestControllerAdvice` global captura e
+traduz cada uma pro status HTTP correto. Isso mantém os Services limpos de código HTTP e os
+Controllers limpos de lógica de negócio.
 
 **ADR-04 — Autenticação via JWT, sem sessão**
 
@@ -144,15 +173,21 @@ compartilhada.
 
 **ADR-05 — Jobs com @Scheduled, não com filas**
 
-Para a v1, um job com `@Scheduled` é suficiente e simples. Evita a dependência de um broker
-de mensagens (RabbitMQ, Kafka). Se o volume crescer, a migração para fila é feita no Service
-sem tocar no Controller nem no Repository.
+Para a v1, `@Scheduled` é suficiente e simples. Evita a dependência de um broker de mensagens.
+`fixedDelay` é preferível a `fixedRate`: garante que o próximo ciclo só começa depois que o
+atual termina, evitando sobreposição de execuções.
 
 **ADR-06 — QR Code gerado no servidor sob demanda**
 
 A imagem do QR Code não é armazenada no banco nem em disco. É gerada pelo endpoint
-`GET /reservas/{id}/qrcode` a cada requisição com a lib ZXing. Simples, sem custo de
-armazenamento, e o conteúdo do QR Code (o `codigoQr`) permanece seguro no banco.
+`GET /reserves/{id}/qrcode` a cada requisição com ZXing. Sem custo de armazenamento,
+e o `codigoQr` permanece seguro no banco.
+
+**ADR-07 — Soft delete em vez de hard delete**
+
+Usuários, laboratórios e reservas nunca são apagados fisicamente. Um campo `active` ou
+`status` marca o registro como inativo. Isso preserva integridade referencial e mantém
+histórico auditável.
 
 ---
 
@@ -182,21 +217,25 @@ armazenamento, e o conteúdo do QR Code (o `codigoQr`) permanece seguro no banco
 ```
 Cliente (front)                  API Spring Boot                      Banco
      |                                |                                  |
-     |-- POST /reservas ------------->|                                  |
-     |   { userId, laboratoryId,      |-- valida conflito de horário --> |
-     |     dataHoraInicio, Fim }      |<- sem conflito ------------------|
-     |                                |-- gera tokenConfirmacao          |
-     |                                |-- gera codigoQr                  |
+     |-- POST /reserves ------------->|                                  |
+     |   { userId, laboratoryId,      |-- valida fim > início            |
+     |     dataHoraInicio, Fim }      |-- valida conflito de horário --> |
+     |                                |<- sem conflito ------------------|
+     |                                |-- @Builder.Default gera          |
+     |                                |   tokenConfirmacao e codigoQr    |
      |                                |-- INSERT (status: PENDENTE) ---->|
      |<-- 201 ReserveResponseDTO -----|                                  |
      |   (sem token, sem codigoQr)    |                                  |
      |                                |                                  |
-     |   [ Job roda 1h antes ]        |-- busca reservas não enviadas -->|
+     |   [ Job roda a cada minuto ]   |-- busca reservas não enviadas -->|
+     |                                |   início entre +55min e +65min   |
      |                                |-- dispara e-mail com link        |
      |                                |-- UPDATE emailEnviado = true --->|
      |                                |                                  |
-     |-- GET /reservas/confirmar/{token} --->|                           |
+     |-- GET /reserves/confirmar/{token} --->|                           |
+     |                                |-- valida status == PENDENTE      |
      |                                |-- UPDATE status = CONFIRMADA --->|
+     |                                |-- UPDATE dataConfirmacao = now() |
      |<-- 200 "Reserva confirmada" ---|                                  |
 ```
 
@@ -208,7 +247,9 @@ Usuário (app/leitor)              API Spring Boot                      Banco
      |-- POST /checkin/{codigoQr} --> |                                  |
      |                                |-- busca reserva pelo codigoQr -->|
      |                                |-- valida status == CONFIRMADA    |
-     |                                |-- valida janela de horário       |
+     |                                |   (senão → 422)                  |
+     |                                |-- valida agora dentro da janela  |
+     |                                |   (senão → 404)                  |
      |                                |-- INSERT CheckIn ---------------->|
      |<-- 201 CheckInResponseDTO -----|                                  |
 ```
@@ -224,9 +265,9 @@ Controller  ──►  Service  ──►  Repository  ──►  PostgreSQL
                    └──────────►  QrCodeService ──►  ZXing
 ```
 
-Regra de dependência: a seta só aponta pra direita.
-O `Service` não conhece `HttpServletRequest`. O `Repository` não conhece regra de negócio.
-O `Controller` não toma decisão — só traduz HTTP para chamada de Service e vice-versa.
+Regra de dependência: a seta só aponta pra direita. O `Service` não conhece
+`HttpServletRequest`. O `Repository` não conhece regra de negócio. O `Controller`
+não toma decisão — só traduz HTTP para chamada de Service e vice-versa.
 
 ---
 
@@ -236,9 +277,9 @@ O `Controller` não toma decisão — só traduz HTTP para chamada de Service e 
 sistema-laboratorios/
 ├── src/
 │   └── main/
-│       ├── java/com/seuprojeto/laboratorios/
+│       ├── java/com/example/lab_manager/
 │       │   ├── config/
-│       │   │   ├── SecurityConfig.java        # Spring Security + JWT filter
+│       │   │   ├── SecurityConfig.java        # Spring Security + JWT filter + BCrypt bean
 │       │   │   └── SchedulingConfig.java      # habilita @Scheduled
 │       │   ├── controller/
 │       │   │   ├── UserController.java
@@ -248,13 +289,19 @@ sistema-laboratorios/
 │       │   │   ├── LoanController.java
 │       │   │   └── CheckInController.java     # endpoint /checkin/{codigoQr}
 │       │   ├── dto/
-│       │   │   ├── request/                   # *RequestDTO (entrada da API)
-│       │   │   └── response/                  # *ResponseDTO (saída da API)
+│       │   │   ├── request/                   # *RequestDTO — entrada da API
+│       │   │   └── response/                  # *ResponseDTO — saída da API
+│       │   ├── enums/
+│       │   │   ├── UserType.java              # ALUNO | PROFESSOR | ADMIN
+│       │   │   ├── ReserveStatus.java         # PENDENTE | CONFIRMADA | CANCELADA | EXPIRADA
+│       │   │   ├── LoanStatus.java            # ATIVO | ATRASADO | DEVOLVIDO
+│       │   │   └── EquipmentStatus.java       # DISPONIVEL | EM_USO | MANUTENCAO
 │       │   ├── exception/
-│       │   │   ├── HorarioConflitanteException.java
-│       │   │   ├── RecursoNaoEncontradoException.java
-│       │   │   ├── ReservaNaoConfirmadaException.java
-│       │   │   └── GlobalExceptionHandler.java   # @RestControllerAdvice
+│       │   │   ├── HorarioConflitanteException.java    # → 409
+│       │   │   ├── RecursoNaoEncontradoException.java  # → 404
+│       │   │   ├── ReservaNaoConfirmadaException.java  # → 422
+│       │   │   ├── RegraDeNegocioException.java        # → 400
+│       │   │   └── GlobalExceptionHandler.java         # @RestControllerAdvice
 │       │   ├── model/
 │       │   │   ├── User.java
 │       │   │   ├── Laboratory.java
@@ -262,11 +309,6 @@ sistema-laboratorios/
 │       │   │   ├── Reserve.java
 │       │   │   ├── Loan.java
 │       │   │   └── CheckIn.java
-│       │   ├── model/enums/
-│       │   │   ├── TipoUsuario.java
-│       │   │   ├── StatusReserva.java
-│       │   │   ├── StatusEmprestimo.java
-│       │   │   └── StatusEquipamento.java
 │       │   ├── repository/
 │       │   │   └── *Repository.java (6 arquivos)
 │       │   ├── security/
@@ -290,7 +332,7 @@ sistema-laboratorios/
 │           └── templates/
 │               └── email-confirmacao.html           # template Thymeleaf do e-mail
 ├── src/test/
-│   └── java/com/seuprojeto/laboratorios/
+│   └── java/com/example/lab_manager/
 │       ├── service/                                 # testes unitários
 │       └── controller/                              # testes de integração
 ├── Dockerfile
@@ -305,50 +347,51 @@ sistema-laboratorios/
 
 ```sql
 CREATE TABLE users (
-    id         BIGSERIAL PRIMARY KEY,
-    nome       TEXT        NOT NULL,
-    email      TEXT        NOT NULL UNIQUE,
-    senha      TEXT        NOT NULL,              -- BCrypt
-    matricula  TEXT        NOT NULL UNIQUE,
-    tipo       TEXT        NOT NULL,              -- ALUNO | PROFESSOR | ADMIN
-    ativo      BOOLEAN     NOT NULL DEFAULT TRUE
+    id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         TEXT    NOT NULL,
+    email        TEXT    NOT NULL UNIQUE,
+    password     TEXT    NOT NULL,              -- BCrypt
+    registration TEXT    NOT NULL UNIQUE,
+    type         TEXT    NOT NULL,              -- ALUNO | PROFESSOR | ADMIN
+    active       BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE laboratories (
-    id           BIGSERIAL PRIMARY KEY,
-    nome         TEXT        NOT NULL,
-    localizacao  TEXT        NOT NULL,
-    capacidade   INTEGER     NOT NULL,
-    descricao    TEXT,
-    ativo        BOOLEAN     NOT NULL DEFAULT TRUE
+    id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         TEXT    NOT NULL,
+    localization TEXT    NOT NULL,
+    capacity     INTEGER NOT NULL,
+    description  TEXT,
+    active       BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE equipments (
-    id             BIGSERIAL PRIMARY KEY,
-    nome           TEXT        NOT NULL,
-    patrimonio     TEXT        NOT NULL UNIQUE,
-    descricao      TEXT,
-    status         TEXT        NOT NULL DEFAULT 'DISPONIVEL',
-    laboratory_id  BIGINT      NOT NULL REFERENCES laboratories(id)
+    id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    name          TEXT    NOT NULL,
+    heritage      TEXT    NOT NULL UNIQUE,
+    description   TEXT,
+    status        TEXT    NOT NULL DEFAULT 'DISPONIVEL',
+    laboratory_id UUID    NOT NULL REFERENCES laboratories(id)
 );
 
 CREATE TABLE reserves (
-    id                        BIGSERIAL PRIMARY KEY,
-    user_id                   BIGINT       NOT NULL REFERENCES users(id),
-    laboratory_id             BIGINT       NOT NULL REFERENCES laboratories(id),
-    data_hora_inicio          TIMESTAMPTZ  NOT NULL,
-    data_hora_fim             TIMESTAMPTZ  NOT NULL,
-    status                    TEXT         NOT NULL DEFAULT 'PENDENTE',
-    token_confirmacao         TEXT         NOT NULL UNIQUE,   -- nunca exposto na API
-    codigo_qr                 TEXT         NOT NULL UNIQUE,   -- nunca exposto na API
-    email_confirmacao_enviado BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at                TIMESTAMPTZ  NOT NULL DEFAULT now()
+    id                        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                   UUID        NOT NULL REFERENCES users(id),
+    laboratory_id             UUID        NOT NULL REFERENCES laboratories(id),
+    data_hora_inicio          TIMESTAMPTZ NOT NULL,
+    data_hora_fim             TIMESTAMPTZ NOT NULL,
+    status                    TEXT        NOT NULL DEFAULT 'PENDENTE',
+    token_confirmacao         TEXT        NOT NULL UNIQUE,   -- nunca exposto na API
+    codigo_qr                 TEXT        NOT NULL UNIQUE,   -- nunca exposto na API
+    email_confirmacao_enviado BOOLEAN     NOT NULL DEFAULT FALSE,
+    data_confirmacao          TIMESTAMPTZ,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- acelera a query de conflito de horário
 CREATE INDEX idx_reserves_laboratorio_horario
     ON reserves (laboratory_id, data_hora_inicio, data_hora_fim)
-    WHERE status != 'CANCELADA';
+    WHERE status NOT IN ('CANCELADA', 'EXPIRADA');
 
 -- acelera o job de e-mail
 CREATE INDEX idx_reserves_email_pendente
@@ -356,13 +399,13 @@ CREATE INDEX idx_reserves_email_pendente
     WHERE email_confirmacao_enviado = FALSE AND status = 'PENDENTE';
 
 CREATE TABLE loans (
-    id                      BIGSERIAL PRIMARY KEY,
-    user_id                 BIGINT       NOT NULL REFERENCES users(id),
-    equipment_id            BIGINT       NOT NULL REFERENCES equipments(id),
-    data_retirada           TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    data_devolucao_prevista TIMESTAMPTZ  NOT NULL,
+    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID        NOT NULL REFERENCES users(id),
+    equipment_id            UUID        NOT NULL REFERENCES equipments(id),
+    data_retirada           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    data_devolucao_prevista TIMESTAMPTZ NOT NULL,
     data_devolucao_real     TIMESTAMPTZ,
-    status                  TEXT         NOT NULL DEFAULT 'ATIVO'
+    status                  TEXT        NOT NULL DEFAULT 'ATIVO'
 );
 
 -- acelera o job de empréstimos atrasados
@@ -371,18 +414,19 @@ CREATE INDEX idx_loans_atrasados
     WHERE status = 'ATIVO' AND data_devolucao_real IS NULL;
 
 CREATE TABLE checkins (
-    id               BIGSERIAL PRIMARY KEY,
-    reserve_id       BIGINT       NOT NULL UNIQUE REFERENCES reserves(id),
-    horario_chegada  TIMESTAMPTZ  NOT NULL DEFAULT now()
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    reserve_id      UUID        NOT NULL UNIQUE REFERENCES reserves(id),
+    horario_chegada TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
 **Notas de projeto:**
 
 - `TIMESTAMPTZ`, nunca `TIMESTAMP`. Sem timezone, qualquer mudança de configuração do servidor quebra os cálculos de horário de forma silenciosa.
-- `token_confirmacao` e `codigo_qr` têm índices únicos implícitos — a busca por eles precisa ser O(1).
-- Os índices parciais (`WHERE status != 'CANCELADA'`, `WHERE status = 'ATIVO'`) reduzem o tamanho do índice e aceleram as queries que mais importam nos jobs.
-- `checkins.reserve_id` é `UNIQUE` — cada reserva tem no máximo um check-in.
+- `token_confirmacao` e `codigo_qr` têm índice `UNIQUE` — a busca por eles precisa ser O(1).
+- Os índices parciais excluem registros irrelevantes (`CANCELADA`, `EXPIRADA`, `ATRASADO`) — menores e mais rápidos.
+- `checkins.reserve_id` é `UNIQUE` — garante no banco que cada reserva tem no máximo um check-in, independente da camada de aplicação.
+- IDs como `UUID` em vez de `BIGSERIAL` — consistente com a Entity JPA que usa `@GeneratedValue(strategy = GenerationType.UUID)`.
 
 ---
 
@@ -396,19 +440,22 @@ CREATE TABLE checkins (
 | POST | `/users` | ADMIN | Criar usuário |
 | GET | `/users` | ADMIN | Listar usuários |
 | GET | `/users/{id}` | ADMIN | Buscar usuário |
+| DELETE | `/users/{id}` | ADMIN | Desativar usuário |
 | POST | `/laboratories` | ADMIN | Criar laboratório |
-| GET | `/laboratories` | Autenticado | Listar laboratórios |
+| GET | `/laboratories` | Autenticado | Listar laboratórios ativos |
 | GET | `/laboratories/{id}` | Autenticado | Buscar laboratório |
 | PUT | `/laboratories/{id}` | ADMIN | Atualizar laboratório |
+| DELETE | `/laboratories/{id}` | ADMIN | Desativar laboratório |
 | POST | `/equipments` | ADMIN | Criar equipamento |
 | GET | `/equipments` | Autenticado | Listar equipamentos |
+| GET | `/equipments/disponiveis` | Autenticado | Listar disponíveis |
 | PUT | `/equipments/{id}` | ADMIN | Atualizar equipamento |
 | POST | `/reserves` | ALUNO, PROFESSOR | Criar reserva |
 | GET | `/reserves` | ADMIN, PROFESSOR | Listar reservas |
 | GET | `/reserves/{id}` | Autenticado | Buscar reserva |
 | DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva |
 | GET | `/reserves/confirmar/{token}` | **Público** | Confirmar reserva via e-mail |
-| GET | `/reserves/{id}/qrcode` | Autenticado | Obter imagem do QR Code |
+| GET | `/reserves/{id}/qrcode` | Autenticado | Obter imagem do QR Code (PNG) |
 | POST | `/checkin/{codigoQr}` | Autenticado | Realizar check-in |
 | POST | `/loans` | ALUNO, PROFESSOR | Criar empréstimo |
 | GET | `/loans` | ADMIN | Listar empréstimos |
@@ -421,23 +468,22 @@ CREATE TABLE checkins (
 |---|---|
 | 200 | Consulta bem-sucedida |
 | 201 | Recurso criado com sucesso |
-| 204 | Operação sem corpo de resposta (ex: cancelar reserva) |
-| 400 | Dados inválidos, validação falhou |
+| 204 | Operação sem corpo de resposta (ex: desativar usuário) |
+| 400 | Dados inválidos ou violação de regra de negócio |
 | 401 | Não autenticado (token ausente ou inválido) |
 | 403 | Autenticado mas sem permissão para o recurso |
-| 404 | Recurso não encontrado |
-| 409 | Conflito — ex: horário já reservado |
+| 404 | Recurso não encontrado ou QR Code fora da janela de horário |
+| 409 | Conflito de horário na reserva |
+| 422 | Check-in em reserva não confirmada |
 
 ### Formato de erro padronizado
-
-Todos os erros retornam o mesmo formato JSON:
 
 ```json
 {
   "timestamp": "2025-01-10T14:30:00Z",
   "status": 409,
   "erro": "Conflito de horário",
-  "mensagem": "O laboratório já possui reserva ativa nesse período.",
+  "mensagem": "Já existe uma reserva para este laboratório no horário solicitado.",
   "path": "/reserves"
 }
 ```
@@ -448,13 +494,14 @@ Todos os erros retornam o mesmo formato JSON:
 
 | Ameaça | Mitigação |
 |---|---|
-| Acesso sem autenticação | JWT obrigatório em todos os endpoints (exceto `/auth/login`, `/reservas/confirmar/{token}`, `/health`) |
-| Escalonamento de privilégio | Role validada no `SecurityConfig` por endpoint — `@PreAuthorize` ou `antMatcher` |
-| Senha exposta na API | `UserResponseDTO` nunca inclui o campo `senha`; armazenada com BCrypt |
-| QR Code ou token adivinhado | `tokenConfirmacao` e `codigoQr` gerados com `UUID.randomUUID()` — 122 bits de entropia |
-| tokenConfirmacao e codigoQr na API | **Nunca** incluídos em nenhum Response DTO. Qualquer alteração nessa regra é regressão de segurança. |
-| Check-in sem estar presente | `codigoQr` separado do `tokenConfirmacao`; check-in valida status CONFIRMADA e janela de horário |
-| SQL Injection | Spring Data JPA com queries parametrizadas; `@Query` com `:param`, nunca concatenação |
+| Acesso sem autenticação | JWT obrigatório em todos os endpoints (exceto `/auth/login`, `/reserves/confirmar/{token}`, `/health`) |
+| Escalonamento de privilégio | Role validada no `SecurityConfig` por endpoint |
+| Senha exposta na API | `UserResponseDTO` nunca inclui `password`; armazenada com BCrypt |
+| Token ou QR Code adivinhado | Gerados com `UUID.randomUUID()` via `@Builder.Default` — 122 bits de entropia |
+| `tokenConfirmacao` e `codigoQr` vazando | **Nunca** incluídos em nenhum Response DTO. Qualquer alteração nessa regra é regressão de segurança. |
+| Check-in sem estar presente | `codigoQr` separado do `tokenConfirmacao`; check-in valida `CONFIRMADA` e janela de horário |
+| Confirmação dupla do link | `confirmar()` rejeita reservas que não estão `PENDENTE` |
+| SQL Injection | Spring Data JPA com queries parametrizadas — nunca concatenação de string |
 
 ---
 
@@ -463,24 +510,21 @@ Todos os erros retornam o mesmo formato JSON:
 Cada etapa é um bloco fechado de trabalho. Ao fim de cada uma o sistema compila, os
 testes passam e o estado do repositório é consistente. Nunca deixe uma etapa pela metade.
 
-Como usar: implemente na ordem abaixo. Só marque uma etapa como concluída depois de
-rodar seu critério de aceite.
-
 ---
 
 ### Etapa 1 — Service Layer
 
 **Objetivo:** mover toda a decisão de negócio para fora dos Controllers.
 
-Criar `*Service` para as 6 entidades. Responsabilidades principais:
+- `UserService.criar()`: valida e-mail único, criptografa senha com BCrypt.
+- `ReserveService.criar()`: valida `fim > início`, busca conflito, persiste com `PENDENTE`.
+  `tokenConfirmacao` e `codigoQr` são gerados pelo `@Builder.Default` da Entity — não setar no builder.
+- `ReserveService.confirmar(token)`: valida `status == PENDENTE`, muda para `CONFIRMADA`, registra `dataConfirmacao`.
+- `CheckInService.realizarCheckIn(codigoQr)`: valida `CONFIRMADA` (→ 422), valida janela de horário (→ 404), cria o `CheckIn`.
+- `LoanService.criar()`: valida `status == DISPONIVEL`, muda equipamento para `EM_USO`.
+- `LoanService.devolver(id)`: preenche `dataDevolucaoReal`, muda equipamento para `DISPONIVEL`.
 
-- `ReserveService.criar()`: busca conflito via Repository, lança `HorarioConflitanteException` se houver, gera `tokenConfirmacao` e `codigoQr` com `UUID.randomUUID()`, persiste com status PENDENTE.
-- `ReserveService.confirmar(token)`: busca pelo token, muda status para CONFIRMADA.
-- `CheckInService.realizarCheckIn(codigoQr)`: valida status CONFIRMADA e janela de horário, cria o CheckIn.
-- `LoanService.criar()`: valida status do equipamento, muda para EM_USO.
-- `LoanService.devolver(id)`: preenche `dataDevolucaoReal`, muda status do equipamento para DISPONIVEL.
-
-**Critério de aceite:** testes unitários do `ReserveService` cobrindo: criação com sucesso, conflito de horário lançando exceção, confirmação por token válido e inválido.
+**Critério de aceite:** testes unitários do `ReserveService` cobrindo: criação com sucesso, `fim <= início` lançando exceção, conflito de horário lançando exceção, confirmação por token válido e inválido, confirmação de reserva já confirmada lançando exceção.
 
 ---
 
@@ -488,26 +532,26 @@ Criar `*Service` para as 6 entidades. Responsabilidades principais:
 
 **Objetivo:** nenhum stack trace vaza para o cliente; todos os erros seguem o mesmo formato JSON.
 
-- Criar as exceções em `exception/`:
-  - `HorarioConflitanteException` → 409
-  - `RecursoNaoEncontradoException` → 404
-  - `ReservaNaoConfirmadaException` → 422
-- Criar `GlobalExceptionHandler` com `@RestControllerAdvice`. Um método `@ExceptionHandler` para cada exceção de domínio. Um handler genérico para `Exception` retornando 500.
+- `HorarioConflitanteException` → 409
+- `RecursoNaoEncontradoException` → 404
+- `ReservaNaoConfirmadaException` → 422
+- `RegraDeNegocioException` → 400
+- `GlobalExceptionHandler` com `@RestControllerAdvice` — handler genérico para `Exception` retorna 500.
 
-**Critério de aceite:** requisição com horário conflitante retorna `409` com o JSON padronizado — sem stack trace, sem mensagem de Hibernate.
+**Critério de aceite:** requisição com horário conflitante retorna `409` com JSON padronizado — sem stack trace, sem mensagem de Hibernate.
 
 ---
 
 ### Etapa 3 — Controllers REST
 
-**Objetivo:** expor a API para o mundo externo usando os Services e DTOs já criados.
+**Objetivo:** expor a API usando os Services e DTOs já criados.
 
 - CRUD completo para as 6 entidades.
 - `GET /reserves/confirmar/{token}` — público, sem autenticação.
 - `POST /checkin/{codigoQr}` — autenticado.
-- Nenhum Controller deve conter lógica de negócio. Se um Controller tiver um `if` sobre regra de domínio, está no lugar errado.
+- Nenhum Controller deve conter lógica de negócio.
 
-**Critério de aceite:** criar uma reserva via `curl`, receber o 201 sem `tokenConfirmacao` nem `codigoQr` no corpo. Tentar criar uma reserva conflitante e receber 409.
+**Critério de aceite:** criar reserva via `curl`, receber 201 sem `tokenConfirmacao` nem `codigoQr` no corpo. Criar reserva conflitante e receber 409.
 
 ---
 
@@ -518,9 +562,9 @@ Criar `*Service` para as 6 entidades. Responsabilidades principais:
 - `POST /auth/login`: recebe e-mail + senha, devolve JWT com `id`, `email` e `role`.
 - `JwtFilter` valida o token em cada requisição e popula o `SecurityContext`.
 - `SecurityConfig` define quais rotas são públicas e quais exigem qual role.
-- Senha armazenada com `BCryptPasswordEncoder`.
+- `PasswordEncoder` declarado como `@Bean` no `SecurityConfig`.
 
-A armadilha desta etapa: a rota `GET /reserves/confirmar/{token}` precisa ser pública — o usuário clica nela pelo e-mail sem estar logado. Configure isso explicitamente no `SecurityConfig` ou o Spring Security vai barrar com 401 antes de chegar no Controller.
+A armadilha desta etapa: `GET /reserves/confirmar/{token}` precisa ser pública — o usuário clica nela pelo e-mail sem estar logado. Configure explicitamente no `SecurityConfig` ou o Spring Security vai barrar com 401.
 
 **Critério de aceite:** sem token → 401. Token de ALUNO em endpoint de ADMIN → 403. Token válido no endpoint correto → resposta esperada.
 
@@ -530,13 +574,13 @@ A armadilha desta etapa: a rota `GET /reserves/confirmar/{token}` precisa ser p�
 
 **Objetivo:** o usuário recebe um e-mail com link de confirmação.
 
-- Configurar `JavaMailSender` via `application.yml` (SMTP, porta, TLS).
-- `MailService.enviarConfirmacao(reserve)`: monta o e-mail com o link `BASE_URL/reserves/confirmar/{tokenConfirmacao}` e envia.
+- Configurar `JavaMailSender` via `application.yml`.
+- `MailService.enviarConfirmacao(reserve)`: monta o link `BASE_URL/reserves/confirmar/{tokenConfirmacao}` e envia.
 - Template HTML em `resources/templates/email-confirmacao.html` via Thymeleaf.
 
-A armadilha desta etapa: use o [Mailtrap](https://mailtrap.io) ou similar para testar localmente. Nunca teste com e-mail real em desenvolvimento — você pode acabar enviando para usuários reais por acidente se o banco de dev tiver dados reais.
+Use o [Mailtrap](https://mailtrap.io) para testar localmente. Nunca use SMTP real em desenvolvimento.
 
-**Critério de aceite:** criar uma reserva, chamar `MailService` diretamente no teste, conferir no Mailtrap que o e-mail chegou com o link correto contendo o token.
+**Critério de aceite:** e-mail chega no Mailtrap com o link correto contendo o token.
 
 ---
 
@@ -544,11 +588,10 @@ A armadilha desta etapa: use o [Mailtrap](https://mailtrap.io) ou similar para t
 
 **Objetivo:** o e-mail é disparado automaticamente 1 hora antes, sem intervenção manual.
 
-- `EmailConfirmacaoScheduler` com `@Scheduled(fixedDelay = 60000)` (roda a cada minuto).
-- A cada ciclo: busca reservas com `emailConfirmacaoEnviado = false` e `dataHoraInicio` entre `agora + 55min` e `agora + 65min`. Chama `MailService` para cada uma. Marca `emailConfirmacaoEnviado = true`.
-- O `fixedDelay` garante que o próximo ciclo só começa depois que o atual termina — evita sobreposição de execuções.
+- `EmailConfirmacaoScheduler` com `@Scheduled(fixedDelay = 60000)`.
+- A cada ciclo: busca reservas com `emailConfirmacaoEnviado = false` e `dataHoraInicio` entre `agora + 55min` e `agora + 65min`. Chama `MailService`. Marca `emailConfirmacaoEnviado = true`.
 
-**Critério de aceite:** criar uma reserva com `dataHoraInicio = agora + 1h`, aguardar o próximo ciclo do job e confirmar no Mailtrap que o e-mail foi enviado. Confirmar que `emailConfirmacaoEnviado` está `true` no banco e que um segundo ciclo **não** reenvia.
+**Critério de aceite:** e-mail enviado uma vez; segundo ciclo não reenvia; `emailConfirmacaoEnviado = true` no banco.
 
 ---
 
@@ -556,13 +599,11 @@ A armadilha desta etapa: use o [Mailtrap](https://mailtrap.io) ou similar para t
 
 **Objetivo:** o usuário consegue visualizar o QR Code da sua reserva.
 
-- Adicionar dependência ZXing (`core` + `javase`).
-- `QrCodeService.gerarImagem(codigoQr)`: gera um `byte[]` PNG com o QR Code.
-- `GET /reserves/{id}/qrcode`: busca a reserva, chama `QrCodeService`, retorna a imagem com `Content-Type: image/png`.
+- `QrCodeService.gerarImagem(codigoQr)`: gera `byte[]` PNG com ZXing.
+- `GET /reserves/{id}/qrcode`: retorna a imagem com `Content-Type: image/png`.
+- O `codigoQr` nunca aparece no corpo JSON — o endpoint devolve apenas a imagem.
 
-O `codigoQr` nunca aparece no corpo JSON. O endpoint devolve **apenas a imagem**. Quem interceptar a resposta vê um PNG, não uma string que pode ser reutilizada facilmente.
-
-**Critério de aceite:** acessar `GET /reserves/{id}/qrcode` e abrir a resposta como imagem. Escanear o QR Code com o celular e confirmar que o conteúdo é o `codigoQr` esperado.
+**Critério de aceite:** escanear a imagem retornada com o celular e confirmar que o conteúdo é o `codigoQr` da reserva.
 
 ---
 
@@ -570,22 +611,20 @@ O `codigoQr` nunca aparece no corpo JSON. O endpoint devolve **apenas a imagem**
 
 **Objetivo:** o QR Code escaneado registra a presença do usuário.
 
-- `POST /checkin/{codigoQr}`: busca a reserva pelo `codigoQr`, valida status CONFIRMADA, valida que `agora` está dentro da janela `[dataHoraInicio, dataHoraFim]`, cria o `CheckIn`.
-- Se a reserva não estiver CONFIRMADA: lança `ReservaNaoConfirmadaException` → 422.
-- Se fora da janela de horário: lança `RecursoNaoEncontradoException` → 404. (Não confirme a existência da reserva para QR Codes fora do horário.)
+- `POST /checkin/{codigoQr}`: valida `CONFIRMADA` (→ 422), valida janela de horário (→ 404), cria o `CheckIn`.
 
-**Critério de aceite:** confirmar uma reserva por e-mail, chamar o endpoint de check-in com o `codigoQr` correto dentro do horário → 201. Tentar check-in com reserva PENDENTE → 422. Tentar check-in fora da janela → 404.
+**Critério de aceite:** reserva confirmada + QR dentro do horário → 201. Reserva `PENDENTE` → 422. Fora da janela → 404.
 
 ---
 
 ### Etapa 9 — Job de Empréstimo Atrasado (@Scheduled)
 
-**Objetivo:** empréstimos vencidos são marcados automaticamente, sem intervenção humana.
+**Objetivo:** empréstimos vencidos são marcados automaticamente.
 
-- `LoanAtrasadoScheduler` com `@Scheduled(cron = "0 0 * * * *")` (roda a cada hora).
-- A cada ciclo: busca loans com `status = ATIVO`, `dataDevolucaoPrevista < agora` e `dataDevolucaoReal = null`. Muda status para ATRASADO.
+- `LoanAtrasadoScheduler` com `@Scheduled(cron = "0 0 * * * *")`.
+- Busca loans `ATIVO` com `dataDevolucaoPrevista < agora` e `dataDevolucaoReal = null`. Muda para `ATRASADO`.
 
-**Critério de aceite:** criar um loan com `dataDevolucaoPrevista` no passado, acionar o job manualmente (ou expor endpoint de teste), confirmar status ATRASADO no banco.
+**Critério de aceite:** loan com `dataDevolucaoPrevista` no passado → `ATRASADO` no banco após o job.
 
 ---
 
@@ -593,12 +632,10 @@ O `codigoQr` nunca aparece no corpo JSON. O endpoint devolve **apenas a imagem**
 
 **Objetivo:** qualquer desenvolvedor consegue entender e testar a API sem ler o código.
 
-- Adicionar `springdoc-openapi-starter-webmvc-ui`.
-- Anotar Controllers com `@Tag` e endpoints com `@Operation` e `@ApiResponse`.
-- Configurar o título, versão e descrição do projeto no bean `OpenAPI`.
-- Proteger o Swagger UI em produção (manter acessível só em dev/staging).
+- `springdoc-openapi-starter-webmvc-ui`.
+- Controllers anotados com `@Tag`, endpoints com `@Operation` e `@ApiResponse`.
 
-**Critério de aceite:** acessar `http://localhost:8080/swagger-ui.html` e conseguir executar `POST /reserves` com os dados corretos diretamente pelo Swagger.
+**Critério de aceite:** `http://localhost:8080/swagger-ui.html` acessível e funcional.
 
 ---
 
@@ -606,22 +643,24 @@ O `codigoQr` nunca aparece no corpo JSON. O endpoint devolve **apenas a imagem**
 
 **Objetivo:** regressão detectada antes de ir para produção.
 
-Testes unitários (`src/test/service/`):
-- Criação de reserva com conflito de horário → exceção
-- Criação de reserva sem conflito → persiste com PENDENTE, token e codigoQr gerados
-- Confirmação por token válido → status CONFIRMADA
+Testes unitários:
+- `fim <= início` → exceção
+- Conflito de horário → `HorarioConflitanteException`
+- Criação sem conflito → `PENDENTE`, token e codigoQr gerados
+- Confirmação por token válido → `CONFIRMADA`
 - Confirmação por token inválido → `RecursoNaoEncontradoException`
-- Check-in em reserva PENDENTE → `ReservaNaoConfirmadaException`
-- Devolução de loan → status DISPONIVEL no equipamento
+- Confirmação de reserva já confirmada → `RegraDeNegocioException`
+- Check-in em reserva `PENDENTE` → `ReservaNaoConfirmadaException`
+- Devolução de loan → equipamento volta para `DISPONIVEL`
 
-Testes de integração (`src/test/controller/`):
+Testes de integração:
 - `POST /reserves` com conflito → 409
-- `GET /reserves/confirmar/{token}` com token válido → 200
+- `GET /reserves/confirmar/{token}` → 200
 - `POST /checkin/{codigoQr}` com reserva confirmada → 201
 - Endpoint de ADMIN sem token → 401
 - Endpoint de ADMIN com token de ALUNO → 403
 
-**Critério de aceite:** `./mvnw test` verde. Nenhum teste ignorado com `@Disabled` que não tenha um comentário explicando por quê.
+**Critério de aceite:** `./mvnw test` verde. Nenhum `@Disabled` sem comentário.
 
 ---
 
@@ -629,16 +668,15 @@ Testes de integração (`src/test/controller/`):
 
 **Objetivo:** o ambiente completo sobe com um único comando.
 
-- `Dockerfile` multi-stage: stage de build com Maven, stage final com JRE slim.
-- `docker-compose.yml` com dois serviços: `app` (a aplicação) e `db` (PostgreSQL). O `app` depende do `db` com `healthcheck`.
-- Variáveis sensíveis via arquivo `.env` (nunca commitado).
+- `Dockerfile` multi-stage: build com Maven, runtime com JRE slim.
+- `docker-compose.yml`: serviços `app` e `db` com `healthcheck`.
+- Variáveis sensíveis via `.env` (nunca commitado).
 
 **Critério de aceite:**
 ```bash
 docker compose up --build
 curl http://localhost:8080/health   # → {"status":"ok"}
 ```
-Criar uma reserva, confirmar via e-mail e realizar check-in — tudo funcionando no ambiente containerizado.
 
 ---
 
@@ -650,11 +688,11 @@ Criar uma reserva, confirmar via e-mail e realizar check-in — tudo funcionando
 # 1. Pré-requisitos: Java 21, Maven, PostgreSQL rodando
 
 # 2. Banco de dados
-createdb laboratorios
+createdb lab_manager
 
 # 3. Configuração
 cp src/main/resources/application.yml.example src/main/resources/application.yml
-# edite: datasource.url, datasource.username/password, mail.*, jwt.secret, app.base-url
+# edite: datasource.url, username, password, mail.*, jwt.secret, app.base-url
 
 # 4. Rodar
 ./mvnw spring-boot:run
@@ -692,7 +730,7 @@ docker compose up --build
 Depois da v1 no ar. Em ordem de valor:
 
 - [ ] Notificação por e-mail ao dono quando o equipamento emprestado é devolvido
-- [ ] Cancelamento automático de reservas PENDENTE que não foram confirmadas até X minutos antes
+- [ ] Cancelamento automático de reservas `PENDENTE` não confirmadas até X minutos antes do início
 - [ ] Painel de estatísticas: reservas por laboratório, taxa de check-in, equipamentos mais emprestados
 - [ ] Reserva de múltiplos equipamentos em um único empréstimo
 - [ ] Histórico de check-ins por usuário

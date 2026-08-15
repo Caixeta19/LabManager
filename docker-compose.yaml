@@ -1,17 +1,17 @@
 services:
   postgres:
-    image: 'postgres:16'
+    image: postgres:16
     container_name: lab_manager_db
     environment:
-      - 'POSTGRES_DB=labmanager'
-      - 'POSTGRES_USER=labmanager'
-      - 'POSTGRES_PASSWORD=labmanager'
+      POSTGRES_DB: labmanager
+      POSTGRES_USER: labmanager
+      POSTGRES_PASSWORD: labmanager
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - lab_manager_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U labmanager -d labmanager']
+      test: ["CMD-SHELL", "pg_isready -U labmanager -d labmanager"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,12 +24,25 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - '8080:8080'
+      - "8080:8080"
     environment:
-      - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/labmanager'
-      - 'SPRING_DATASOURCE_USERNAME=labmanager'
-      - 'SPRING_DATASOURCE_PASSWORD=labmanager'
-      - 'SPRING_JPA_HIBERNATE_DDL_AUTO=update'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/labmanager
+      SPRING_DATASOURCE_USERNAME: labmanager
+      SPRING_DATASOURCE_PASSWORD: labmanager
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:8.9
+    container_name: lab_manager_pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "15432:80"
     restart: unless-stopped
 
 volumes:

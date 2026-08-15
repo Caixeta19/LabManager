@@ -4,7 +4,6 @@ import com.example.lab_manager.enums.ReserveStatus;
 import com.example.lab_manager.model.Reserve;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.lang.ScopedValue;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;

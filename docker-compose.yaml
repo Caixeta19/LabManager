@@ -10,6 +10,26 @@ services:
       - '5432:5432'
     volumes:
       - lab_manager_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U labmanager -d labmanager']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: lab_manager_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/labmanager'
+      - 'SPRING_DATASOURCE_USERNAME=labmanager'
+      - 'SPRING_DATASOURCE_PASSWORD=labmanager'
+      - 'SPRING_JPA_HIBERNATE_DDL_AUTO=update'
     restart: unless-stopped
 
 volumes:

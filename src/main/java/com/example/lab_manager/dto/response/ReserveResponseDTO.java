@@ -13,7 +13,7 @@ public record ReserveResponseDTO(
         return new ReserveResponseDTO(
                 reserve.getId(), reserve.getUser().getId(), reserve.getUser().getName(),
                 reserve.getLaboratory().getId(), reserve.getLaboratory().getName(),
-                reserve.getDataHorainicio(), reserve.getDataHoraFim(),
+                reserve.getDataHoraInicio(), reserve.getDataHoraFim(),
                 reserve.getStatus(), reserve.isEmailConfirmacaoEnviado()
 
         );

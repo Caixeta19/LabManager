@@ -14,7 +14,7 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
 
     @Query("SELECT COUNT(r) > 0 FROM Reserve r WHERE r.laboratory.id = :labId " +
             "AND r.status <> 'CANCELADA' AND r.status <> 'EXPIRADA' " +
-            "AND ((r.dataHorainicio < :fim) AND (r.dataHoraFim > :inicio))")
+            "AND ((r.dataHoraInicio < :fim) AND (r.dataHoraFim > :inicio))")
     boolean existsConflictingReserve(@Param("labId") UUID labId,
                                      @Param("inicio") LocalDateTime inicio,
                                      @Param("fim") LocalDateTime fim);

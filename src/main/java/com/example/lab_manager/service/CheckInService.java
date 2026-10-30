@@ -32,7 +32,7 @@ public class CheckInService {
             throw new ReservaNaoConfirmadaException("Sua reserva ainda não foi confirmada. Verifique seu e-mail.");
         }
 
-        if (agora.isBefore(reserve.getDataHorainicio()) || agora.isAfter(reserve.getDataHoraFim())) {
+        if (agora.isBefore(reserve.getDataHoraInicio()) || agora.isAfter(reserve.getDataHoraFim())) {
             throw new RecursoNaoEncontradoException("QR Code inválido ou fora do horário permitido.");
         }
 

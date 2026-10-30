@@ -1,12 +1,17 @@
 package com.example.lab_manager.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-
-import java.util.UUID;
+import jakarta.validation.constraints.NotNull;
 
 public record EquipmentRequestDTO(
-        @NotBlank String name,
-        @NotBlank String heritage,
+        @NotBlank(message = "O nome do equipamento é obrigatório")
+        String name,
+
+        @NotBlank(message = "O número de patrimônio (tombo) é obrigatório")
+        String heritage,
+
         String description,
-        @NotBlank UUID laboratoryId) {
-}
+
+        @NotNull(message = "O ID do laboratório é obrigatório")
+        Long laboratoryId
+) {}

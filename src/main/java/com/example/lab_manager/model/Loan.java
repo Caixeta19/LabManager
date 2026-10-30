@@ -39,7 +39,7 @@ public class Loan {
      @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(nullable = false)
-    private LoanStatus status = LoanStatus.EM_ANDAMENTO;
+    private LoanStatus status = LoanStatus.ATIVO;
 
 
 

@@ -1,8 +1,7 @@
 package com.example.lab_manager.enums;
 
 public enum UserType {
-
-    COORDENACAO,
+    ALUNO,
     PROFESSOR,
     ADMIN
 }

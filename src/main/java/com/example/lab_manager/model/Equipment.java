@@ -39,7 +39,7 @@ public class Equipment {
     @JoinColumn(name = "laboratory_id", nullable = false)
     private Laboratory laboratory;
 
-   @OneToMany(mappedBy = "equipments")
+   @OneToMany(mappedBy = "equipment")
     private List<Loan> loans;
 
 

@@ -1,4 +1,5 @@
 package com.example.lab_manager.model;
+
 import com.example.lab_manager.enums.ReserveStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,7 +13,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Reserve {
 
     @Id
@@ -24,11 +24,11 @@ public class Reserve {
     private User user;
 
     @ManyToOne
-    @JoinColumn( name = "laboratory_id", nullable = false)
+    @JoinColumn(name = "laboratory_id", nullable = false)
     private Laboratory laboratory;
 
     @Column(nullable = false)
-    private LocalDateTime dataHorainicio;
+    private LocalDateTime dataHoraInicio;
 
     @Column(nullable = false)
     private LocalDateTime dataHoraFim;
@@ -38,17 +38,13 @@ public class Reserve {
     @Column(nullable = false)
     private ReserveStatus status = ReserveStatus.PENDENTE;
 
-    // Token único para o link de confirmação por e-mail (1h antes do horário)
+    @Builder.Default
+    @Column(nullable = false, unique = true)
+    private String tokenConfirmacao = UUID.randomUUID().toString();
 
     @Builder.Default
     @Column(nullable = false, unique = true)
-    private String ConfirmationToken = UUID.randomUUID().toString();
-
-    // Código dedicado para o QR Code de check-in (separado do token de e-mail por segurança)
-
-    @Builder.Default
-    @Column(nullable = false)
-    private String QRCode = UUID.randomUUID().toString();
+    private String codigoQr = UUID.randomUUID().toString();
 
     @Builder.Default
     @Column(nullable = false)
@@ -58,10 +54,4 @@ public class Reserve {
 
     @OneToOne(mappedBy = "reserve")
     private CheckIn checkIn;
-
-
-
-
-
-
 }

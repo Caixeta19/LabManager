@@ -20,7 +20,7 @@ public class CheckInController {
 
     @PostMapping("/{codigoQr}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Realiza check-in validando se a reserva está CONFIRMADA e dentro da janela de horário")
+    @Operation(summary = "Realiza check-in (só o dono da reserva, CONFIRMADA e dentro da janela de horário)")
     public ResponseEntity<CheckInResponseDTO> doCheckIn(@PathVariable String codigoQr) {
         CheckInResponseDTO response = checkInService.performCheckIn(codigoQr);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

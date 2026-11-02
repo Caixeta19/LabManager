@@ -220,6 +220,10 @@ Branch: `feat/fase2-implementacao`. Cada etapa termina com `./mvnw clean compile
 | Etapa | Status | Commit | Resumo | Pendências |
 |---|---|---|---|---|
 | 0 — Fazer compilar | ✅ | _ver git log_ | Corrigidos os 13 erros (getters/setters, IDs `UUID` nos requests, `findByActiveTrue`, `ReservaNaoConfirmadaException` → `LabManagerException` 422, `DaoAuthenticationProvider(PasswordEncoder)` + `setUserDetailsService`, `findByTokenConfirmacao`/`findByCodigoQr`). Removido `config/SecurityConfig.java` (bean duplicado). `ReserveService.create` não sobrescreve mais token/QR (RN12). `contextLoads` marcado com `@Tag("integration")` e excluído do `./mvnw test` padrão (perfil `-Pintegration` para rodar). | — |
+| 1 — Schema | ✅ | _ver git log_ | `V2__alinha_schema_ao_readme.sql`: colunas em inglês, `TIMESTAMPTZ` (valores existentes interpretados em America/Sao_Paulo), `created_at` em reserves, `data_devolucao_prevista` → `DATE`, `failed_attempts`/`locked_until`, default `'ATIVO'` em loans, índices parciais do README. Entidades ajustadas (typo `locatization` → `localization`, `unique` em email/registration/heritage, `LocalDate` no empréstimo). Fuso `America/Sao_Paulo` na JVM, no Hibernate (`jdbc.time_zone`) e no Jackson. Removido `ddl-auto=update` do compose. **Validado**: V1+V2 aplicadas e `ddl-auto=validate` OK num banco descartável no Postgres local. | — |
 
 ### Desvios e decisões registradas
 - **D0.1** — A exclusão de testes `integration` foi antecipada da Etapa 10 para a Etapa 0. Sem isso, o `./mvnw test` de cada etapa falharia por falta de banco (o Docker Desktop não está ativo nesta máquina), e a verificação por etapa perderia o sentido.
+- **D1.1** — A decisão 3 pede `locked_until TIMESTAMP`, mas a decisão 7 e o README pedem `TIMESTAMPTZ` em todas as datas. Segui a 7 (`TIMESTAMPTZ`), por coerência com o resto do schema.
+- **D1.2** — `failed_attempts` foi criada como `NOT NULL DEFAULT 0` (a decisão diz só `DEFAULT 0`), porque a entidade usa `int` primitivo.
+- **D1.3** — Os índices antigos da V1 (`idx_reserves_laboratory_periodo`, `idx_loans_status`) foram mantidos. Removê-los não estava nas decisões.

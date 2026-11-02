@@ -1,36 +1,36 @@
 package com.example.lab_manager.model;
+
 import com.example.lab_manager.enums.UserType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name= "Users")
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class User {
 
     @Id
-    @Column(name = "id")
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "name", length = 100, nullable = false)
+    @Column(nullable = false)
     private String name;
 
-    @Column(name = "email", length = 100, nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password", length = 100, nullable = false)
+    @Column(nullable = false)
     private String password;
 
-    @Column(name = "registration", length = 100, nullable = false)
+    @Column(nullable = false, unique = true)
     private String registration;
 
     @Enumerated(EnumType.STRING)
@@ -41,10 +41,18 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
-    @OneToMany(mappedBy= "user")
+    /** Tentativas de login erradas seguidas (decisão 3). */
+    @Builder.Default
+    @Column(name = "failed_attempts", nullable = false)
+    private int failedAttempts = 0;
+
+    /** Enquanto estiver no futuro, o login é recusado com ERR_AUTH_LOCKED. */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @OneToMany(mappedBy = "user")
     private List<Reserve> reserves;
 
-    @OneToMany( mappedBy = "user")
+    @OneToMany(mappedBy = "user")
     private List<Loan> loans;
-
 }

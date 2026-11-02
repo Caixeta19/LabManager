@@ -3,6 +3,7 @@ package com.example.lab_manager.model;
 import com.example.lab_manager.enums.ReserveStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -51,6 +52,10 @@ public class Reserve {
     private boolean emailConfirmacaoEnviado = false;
 
     private LocalDateTime dataConfirmacao;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @OneToOne(mappedBy = "reserve")
     private CheckIn checkIn;

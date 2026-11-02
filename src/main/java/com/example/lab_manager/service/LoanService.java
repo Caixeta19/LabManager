@@ -49,7 +49,7 @@ public class LoanService {
         loan.setEquipment(equipment);
         loan.setUser(user);
         loan.setDataRetirada(LocalDateTime.now());
-        loan.setDataDevolucaoPrevista(dto.dataDevolucaoPrevista().atStartOfDay());
+        loan.setDataDevolucaoPrevista(dto.dataDevolucaoPrevista());
         loan.setStatus(LoanStatus.ATIVO);
 
         Loan saved = loanRepository.save(loan);
@@ -89,7 +89,7 @@ public class LoanService {
                 loan.getUser().getId(),
                 loan.getUser().getName(),
                 loan.getDataRetirada().toLocalDate(),
-                loan.getDataDevolucaoPrevista().toLocalDate(),
+                loan.getDataDevolucaoPrevista(),
                 loan.getDataDevolucaoReal() != null ? loan.getDataDevolucaoReal().toLocalDate() : null,
                 loan.getStatus()
         );

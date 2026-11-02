@@ -48,4 +48,7 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
     @Query("UPDATE Reserve r SET r.emailConfirmacaoEnviado = true " +
             "WHERE r.id = :id AND r.emailConfirmacaoEnviado = false")
     int marcarEmailConfirmacaoEnviado(@Param("id") UUID id);
+
+    /** Decisão 1: reservas ainda PENDENTE cujo início já passou. */
+    List<Reserve> findByStatusAndDataHoraInicioBefore(ReserveStatus status, LocalDateTime agora);
 }

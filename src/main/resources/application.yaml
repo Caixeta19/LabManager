@@ -67,5 +67,7 @@ server:
     include-binding-errors: never
 
 springdoc:
+  # Documenta só as respostas declaradas em cada endpoint (@ApiResponse), sem repetir todos os handlers
+  override-with-generic-response: false
   swagger-ui:
     path: /docs

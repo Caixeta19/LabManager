@@ -24,7 +24,7 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO create(UserRequestDTO dto) {
-        if (userRepository.existsByEmail(dto.email())) {
+        if (userRepository.existsByEmailIgnoreCase(dto.email())) {
             throw new RegraDeNegocioException("Já existe um usuário cadastrado com este e-mail.");
         }
 

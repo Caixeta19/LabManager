@@ -39,7 +39,7 @@ public class LoanService {
         }
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário autenticado não encontrado."));
 
         equipment.setStatus(EquipmentStatus.EM_USO);

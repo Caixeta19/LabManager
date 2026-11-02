@@ -25,10 +25,19 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+    # Variáveis lidas do arquivo .env (copie de .env.example). Ver README, "Variáveis de ambiente".
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/labmanager
-      SPRING_DATASOURCE_USERNAME: labmanager
-      SPRING_DATASOURCE_PASSWORD: labmanager
+      DB_URL: jdbc:postgresql://postgres:5432/labmanager
+      DB_USERNAME: labmanager
+      DB_PASSWORD: labmanager
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@labmanager.local}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
     restart: unless-stopped
 
   pgadmin:

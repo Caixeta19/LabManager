@@ -44,7 +44,7 @@ public class ReserveService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório não encontrado."));
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário autenticado não encontrado."));
 
         boolean hasConflict = reserveRepository.existsConflictingReserve(

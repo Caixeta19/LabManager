@@ -13,4 +13,10 @@ public abstract class LabManagerException extends RuntimeException {
         this.codigoInterno = codigoInterno;
         this.httpStatus = httpStatus;
     }
+
+    protected LabManagerException(String message, String codigoInterno, HttpStatus httpStatus, Throwable cause) {
+        super(message, cause);
+        this.codigoInterno = codigoInterno;
+        this.httpStatus = httpStatus;
+    }
 }

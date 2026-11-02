@@ -4,10 +4,11 @@ import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record ReserveRequestDTO(
         @NotNull(message = "O ID do laboratório é obrigatório")
-        java.util.UUID laboratoryId,
+        UUID laboratoryId,
 
         @NotNull(message = "A data/hora de início é obrigatória")
         @Future(message = "A data de início deve ser no futuro")

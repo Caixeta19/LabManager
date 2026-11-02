@@ -40,17 +40,26 @@ public class ReserveController {
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Busca reserva por ID")
+    @Operation(summary = "Busca reserva por ID (dono, ADMIN ou PROFESSOR; demais recebem 404)")
     public ResponseEntity<ReserveResponseDTO> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(reserveService.findById(id));
     }
 
-    @DeleteMapping("/{id}")
+    @PutMapping("/{id}/cancelar")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Cancela uma reserva")
+    @Operation(summary = "Cancela uma reserva (dono ou ADMIN; demais recebem 404)")
     public ResponseEntity<Void> cancel(@PathVariable UUID id) {
         reserveService.cancel(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Rota antiga (README §9), mantida por compatibilidade. Mesma regra de {@code PUT /{id}/cancelar}. */
+    @Deprecated
+    @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cancela uma reserva (rota antiga; prefira PUT /reserves/{id}/cancelar)", deprecated = true)
+    public ResponseEntity<Void> cancelLegacy(@PathVariable UUID id) {
+        return cancel(id);
     }
 
     @GetMapping("/confirmar/{token}")
@@ -60,9 +69,10 @@ public class ReserveController {
         return ResponseEntity.ok("Reserva confirmada com sucesso!");
     }
 
-    @GetMapping(value = "/{id}/qrcode", produces = MediaType.IMAGE_PNG_VALUE)
+    // Sem "produces": assim os erros (404, 401) continuam saindo em JSON pelo GlobalExceptionHandler
+    @GetMapping("/{id}/qrcode")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Gera e retorna a imagem PNG do QR Code da reserva sob demanda")
+    @Operation(summary = "Gera e retorna a imagem PNG do QR Code da reserva sob demanda (só o dono)")
     public ResponseEntity<byte[]> getQrCodeImage(@PathVariable UUID id) {
         byte[] qrCodePng = reserveService.generateQrCodeImage(id);
         return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(qrCodePng);

@@ -2,16 +2,18 @@ package com.example.lab_manager.service;
 
 import com.example.lab_manager.dto.request.UserRequestDTO;
 import com.example.lab_manager.dto.response.UserResponseDTO;
-import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.exceptions.RecursoNaoEncontradoException;
+import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.model.User;
 import com.example.lab_manager.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,20 +26,26 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO create(UserRequestDTO dto) {
-        if (userRepository.existsByEmail(dto.email())) {
+        String email = dto.email().trim().toLowerCase(Locale.ROOT);
+
+        // RN01 - e-mail único, sem diferenciar maiúsculas e minúsculas
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new RegraDeNegocioException("Já existe um usuário cadastrado com este e-mail.");
+        }
+        if (userRepository.existsByRegistration(dto.registration().trim())) {
+            throw new RegraDeNegocioException("Já existe um usuário cadastrado com esta matrícula.",
+                    "ERR_USER_001", HttpStatus.CONFLICT);
         }
 
         User user = new User();
-        user.setName(dto.nome());
-        user.setEmail(dto.email());
-        user.setPassword(passwordEncoder.encode(dto.senha()));
-        user.setRegistration(dto.matricula());
-        user.setType(dto.tipo());
+        user.setName(dto.name().trim());
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(dto.password())); // RN02
+        user.setRegistration(dto.registration().trim());
+        user.setType(dto.type());
         user.setActive(true);
 
-        User saved = userRepository.save(user);
-        return toDTO(saved);
+        return toDTO(userRepository.save(user));
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +64,7 @@ public class UserService {
     public void deactivate(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
-        user.setActive(false);
+        user.setActive(false); // RN03 - soft delete
         userRepository.save(user);
     }
 

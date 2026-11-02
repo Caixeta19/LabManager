@@ -1,21 +1,27 @@
+# Configuração base: sem segredos e sem defaults de ambiente.
+# Todas as variáveis obrigatórias estão listadas no README ("Variáveis de ambiente").
+# Para desenvolvimento local, ative o perfil dev (SPRING_PROFILES_ACTIVE=dev): ele traz defaults locais.
 spring:
   application:
     name: lab-manager
 
+  jackson:
+    time-zone: America/Sao_Paulo
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/labmanager
-    username: labmanager
-    password: labmanager
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate   # Flyway controla o schema, Hibernate so valida
-    show-sql: true
+      ddl-auto: validate   # Flyway controla o schema; o Hibernate só valida
+    open-in-view: false
     properties:
       hibernate:
-        format_sql: true
-    open-in-view: false
+        jdbc:
+          time_zone: America/Sao_Paulo
 
   flyway:
     enabled: true
@@ -23,8 +29,8 @@ spring:
     baseline-on-migrate: true
 
   mail:
-    host: smtp.gmail.com
-    port: 587
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
@@ -33,14 +39,35 @@ spring:
           auth: true
           starttls:
             enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+jwt:
+  secret: ${JWT_SECRET}                        # obrigatório, mínimo de 32 caracteres
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24h
 
 app:
-  # Usada para montar o link de confirmacao enviado no email
-  base-url: http://localhost:8080
+  # Usada para montar o link de confirmação enviado no e-mail
+  base-url: ${APP_BASE_URL}
+  mail:
+    from: ${MAIL_FROM:no-reply@labmanager.local}
+  security:
+    login:
+      max-attempts: ${AUTH_MAX_ATTEMPTS:5}
+      lock-duration: ${AUTH_LOCK_MINUTES:15}m
 
 server:
   port: 8080
+  # Erros fora dos controllers (/error) também não expõem stack trace nem mensagens internas
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
 
 springdoc:
+  # Documenta só as respostas declaradas em cada endpoint (@ApiResponse), sem repetir todos os handlers
+  override-with-generic-response: false
   swagger-ui:
     path: /docs

@@ -23,7 +23,7 @@ public class LaboratoryService {
     public LaboratoryResponseDTO create(LaboratoryRequestDTO dto) {
         Laboratory lab = new Laboratory();
         lab.setName(dto.name());
-        lab.setLocatization(dto.localization());
+        lab.setLocalization(dto.localization());
         lab.setCapacity(dto.capacity());
         lab.setDescription(dto.description());
         lab.setActive(true);
@@ -50,7 +50,7 @@ public class LaboratoryService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório não encontrado."));
 
         lab.setName(dto.name());
-        lab.setLocatization(dto.localization());
+        lab.setLocalization(dto.localization());
         lab.setCapacity(dto.capacity());
         lab.setDescription(dto.description());
 
@@ -69,7 +69,7 @@ public class LaboratoryService {
         return new LaboratoryResponseDTO(
                 lab.getId(),
                 lab.getName(),
-                lab.getLocatization(),
+                lab.getLocalization(),
                 lab.getCapacity(),
                 lab.getDescription(),
                 lab.getActive()

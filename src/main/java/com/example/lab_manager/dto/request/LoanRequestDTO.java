@@ -4,10 +4,11 @@ import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record LoanRequestDTO(
         @NotNull(message = "O ID do equipamento é obrigatório")
-        Long equipmentId,
+        UUID equipmentId,
 
         @NotNull(message = "A data de devolução prevista é obrigatória")
         @Future(message = "A data de devolução prevista deve ser uma data futura")

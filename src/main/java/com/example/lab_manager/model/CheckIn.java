@@ -1,4 +1,5 @@
 package com.example.lab_manager.model;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,7 +13,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class CheckIn {
 
     @Id
@@ -26,7 +26,4 @@ public class CheckIn {
     @Builder.Default
     @Column(nullable = false)
     private LocalDateTime horarioChegada = LocalDateTime.now();
-
-
-
 }

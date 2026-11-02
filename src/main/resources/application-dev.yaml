@@ -1,0 +1,23 @@
+# Perfil dev: defaults para rodar localmente (Postgres do docker-compose e SMTP de teste).
+# O JWT_SECRET continua obrigatório também em dev.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/labmanager}
+    username: ${DB_USERNAME:labmanager}
+    password: ${DB_PASSWORD:labmanager}
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  mail:
+    # Mailtrap (README, etapa 5). Nunca use SMTP real em desenvolvimento.
+    host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}

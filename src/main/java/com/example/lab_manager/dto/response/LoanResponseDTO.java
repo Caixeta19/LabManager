@@ -1,7 +1,9 @@
 package com.example.lab_manager.dto.response;
 
-import com.example.lab_manager.enums.LoanStatus; // Enum de status do empréstimo
+import com.example.lab_manager.enums.LoanStatus;
+
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record LoanResponseDTO(
@@ -11,8 +13,8 @@ public record LoanResponseDTO(
         String heritage,
         UUID userId,
         String userName,
-        LocalDate dataRetirada,
+        LocalDateTime dataRetirada,
         LocalDate dataDevolucaoPrevista,
-        LocalDate dataDevolucaoReal,
+        LocalDateTime dataDevolucaoReal,
         LoanStatus status
 ) {}

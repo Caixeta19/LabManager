@@ -452,11 +452,12 @@ CREATE TABLE checkins (
 | PUT | `/equipments/{id}` | ADMIN | Atualizar equipamento |
 | POST | `/reserves` | ALUNO, PROFESSOR | Criar reserva |
 | GET | `/reserves` | ADMIN, PROFESSOR | Listar reservas |
-| GET | `/reserves/{id}` | Autenticado | Buscar reserva |
-| DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva |
+| GET | `/reserves/{id}` | Dono, ADMIN, PROFESSOR | Buscar reserva |
+| PUT | `/reserves/{id}/cancelar` | Dono ou ADMIN | Cancelar reserva |
+| DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva (rota antiga, *deprecated*) |
 | GET | `/reserves/confirmar/{token}` | **Público** | Confirmar reserva via e-mail |
-| GET | `/reserves/{id}/qrcode` | Autenticado | Obter imagem do QR Code (PNG) |
-| POST | `/checkin/{codigoQr}` | Autenticado | Realizar check-in |
+| GET | `/reserves/{id}/qrcode` | Dono | Obter imagem do QR Code (PNG) |
+| POST | `/checkin/{codigoQr}` | Dono da reserva | Realizar check-in |
 | POST | `/loans` | ALUNO, PROFESSOR | Criar empréstimo |
 | GET | `/loans` | ADMIN | Listar empréstimos |
 | PUT | `/loans/{id}/devolver` | ADMIN | Registrar devolução |
@@ -473,20 +474,24 @@ CREATE TABLE checkins (
 | 401 | Não autenticado (token ausente ou inválido) |
 | 403 | Autenticado mas sem permissão para o recurso |
 | 404 | Recurso não encontrado ou QR Code fora da janela de horário |
-| 409 | Conflito de horário na reserva |
-| 422 | Check-in em reserva não confirmada |
+| 409 | Conflito: horário (`ERR_RESERVA_001`), reserva não confirmável (`ERR_RESERVA_002`), equipamento indisponível (`ERR_EQUIP_001`), duplicidade (`ERR_USER_001`, `ERR_EQUIP_002`, `ERR_CHECKIN_003`) |
+| 422 | Erros de `@Valid` (`ERR_VALIDACAO`, com `erros[]`) ou check-in em reserva não confirmada (`ERR_CHECKIN_001`) |
+| 423 | Conta bloqueada por excesso de tentativas de login (`ERR_AUTH_LOCKED`) |
 
 ### Formato de erro padronizado
 
 ```json
 {
-  "timestamp": "2025-01-10T14:30:00Z",
+  "timestamp": "2025-01-10T14:30:00-03:00",
   "status": 409,
-  "erro": "Conflito de horário",
+  "codigo": "ERR_RESERVA_001",
   "mensagem": "Já existe uma reserva para este laboratório no horário solicitado.",
-  "path": "/reserves"
+  "path": "/reserves",
+  "erros": []
 }
 ```
+
+Em erros de validação (422), `erros` traz a lista `{ "campo": "...", "mensagem": "..." }`.
 
 ---
 
@@ -685,43 +690,58 @@ curl http://localhost:8080/health   # → {"status":"ok"}
 ### Localmente (sem Docker)
 
 ```bash
-# 1. Pré-requisitos: Java 21, Maven, PostgreSQL rodando
+# 1. Pré-requisitos: Java 21 e PostgreSQL rodando (ou: docker compose up -d postgres)
 
-# 2. Banco de dados
-createdb lab_manager
+# 2. Variáveis mínimas (o perfil dev traz defaults para banco, SMTP de teste e APP_BASE_URL)
+export SPRING_PROFILES_ACTIVE=dev
+export JWT_SECRET="uma-chave-aleatoria-com-pelo-menos-32-caracteres"
 
-# 3. Configuração
-cp src/main/resources/application.yml.example src/main/resources/application.yml
-# edite: datasource.url, username, password, mail.*, jwt.secret, app.base-url
-
-# 4. Rodar
+# 3. Rodar (o Flyway aplica as migrations no startup)
 ./mvnw spring-boot:run
 
-# 5. Testar
-curl http://localhost:8080/health
+# 4. Testar
+curl http://localhost:8080/health   # -> {"status":"ok"}
+# Swagger UI: http://localhost:8080/docs
 ```
 
 ### Com Docker
 
 ```bash
-cp .env.example .env   # preencha as variáveis
+cp .env.example .env   # preencha as variáveis (o .env nunca é commitado)
 docker compose up --build
+```
+
+### Testes
+
+```bash
+./mvnw test                  # testes unitários (sem banco)
+./mvnw test -Pintegration    # + integração: Testcontainers (exige Docker)
+# Sem Docker, contra um Postgres DESCARTÁVEL já existente:
+IT_DB_URL=jdbc:postgresql://localhost:5432/labmanager_it ./mvnw test -Pintegration
 ```
 
 ### Variáveis de ambiente
 
-| Variável | Obrigatória | Default | Descrição |
-|---|---|---|---|
-| `DB_URL` | Sim | — | JDBC URL do PostgreSQL |
-| `DB_USERNAME` | Sim | — | Usuário do banco |
-| `DB_PASSWORD` | Sim | — | Senha do banco |
-| `JWT_SECRET` | Sim | — | Chave secreta do JWT (mín. 32 chars) |
-| `JWT_EXPIRATION_MS` | Não | `86400000` | Validade do JWT em ms (24h) |
-| `MAIL_HOST` | Sim | — | Host SMTP |
-| `MAIL_PORT` | Não | `587` | Porta SMTP |
-| `MAIL_USERNAME` | Sim | — | Usuário SMTP |
-| `MAIL_PASSWORD` | Sim | — | Senha SMTP |
-| `APP_BASE_URL` | Sim | — | URL base usada nos links do e-mail |
+Sem perfil ativo, todas as variáveis "Sim" são obrigatórias: a aplicação não sobe sem elas.
+No perfil `dev` (`SPRING_PROFILES_ACTIVE=dev`), só o `JWT_SECRET` é obrigatório; as demais têm defaults locais.
+
+| Variável | Obrigatória | Default | Default no perfil `dev` | Descrição |
+|---|---|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | Não | — | — | `dev` ativa os defaults locais e o `show-sql` |
+| `DB_URL` | Sim | — | `jdbc:postgresql://localhost:5432/labmanager` | JDBC URL do PostgreSQL |
+| `DB_USERNAME` | Sim | — | `labmanager` | Usuário do banco |
+| `DB_PASSWORD` | Sim | — | `labmanager` | Senha do banco |
+| `JWT_SECRET` | **Sim (inclusive em dev)** | — | — | Chave HMAC do JWT, mínimo de 32 caracteres |
+| `JWT_EXPIRATION_MS` | Não | `86400000` | `86400000` | Validade do JWT em ms (24h) |
+| `MAIL_HOST` | Sim | — | `sandbox.smtp.mailtrap.io` | Host SMTP |
+| `MAIL_PORT` | Não | `587` | `2525` | Porta SMTP |
+| `MAIL_USERNAME` | Sim | — | vazio | Usuário SMTP |
+| `MAIL_PASSWORD` | Sim | — | vazio | Senha SMTP |
+| `MAIL_FROM` | Não | `no-reply@labmanager.local` | idem | Remetente do e-mail de confirmação |
+| `APP_BASE_URL` | Sim | — | `http://localhost:8080` | URL base usada no link do e-mail |
+| `AUTH_MAX_ATTEMPTS` | Não | `5` | `5` | Tentativas de login erradas seguidas antes do bloqueio |
+| `AUTH_LOCK_MINUTES` | Não | `15` | `15` | Duração do bloqueio de conta, em minutos |
+| `IT_DB_URL` / `IT_DB_USERNAME` / `IT_DB_PASSWORD` | Não | — | — | Só para testes: Postgres descartável do `LabManagerExternalDatabaseTests` |
 
 ---
 

@@ -31,7 +31,7 @@ public class LoanService {
 
     @Transactional
     public LoanResponseDTO createLoan(LoanRequestDTO dto) {
-        Equipment equipment = (Equipment) equipmentRepository.findById(dto.equipmentId())
+        Equipment equipment = equipmentRepository.findById(dto.equipmentId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Equipamento não encontrado."));
 
         if (equipment.getStatus() != EquipmentStatus.DISPONIVEL) {

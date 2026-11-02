@@ -9,8 +9,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
-    Optional<Reserve> findByConfirmationToken(String token);
-    Optional<Reserve> findByQRCode(String qrCode);
+    Optional<Reserve> findByTokenConfirmacao(String token);
+    Optional<Reserve> findByCodigoQr(String codigoQr);
 
     @Query("SELECT COUNT(r) > 0 FROM Reserve r WHERE r.laboratory.id = :labId " +
             "AND r.status <> 'CANCELADA' AND r.status <> 'EXPIRADA' " +

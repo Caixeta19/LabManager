@@ -25,7 +25,7 @@ public class EquipmentService {
 
     @Transactional
     public EquipmentResponseDTO create(EquipmentRequestDTO dto) {
-        Laboratory lab = (Laboratory) laboratoryRepository.findById(dto.laboratoryId())
+        Laboratory lab = laboratoryRepository.findById(dto.laboratoryId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório vinculado não encontrado."));
 
         Equipment equipment = new Equipment();

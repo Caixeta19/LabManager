@@ -210,3 +210,16 @@ Legenda: ✅ OK · ⚠️ Parcial · ❌ Ausente
 ## 7. Próximo passo
 
 Fase 2 aguardando revisão. Ordem planejada: Segurança → Usuários → Laboratórios → Equipamentos → Reservas → Confirmação por e-mail → Check-in → Empréstimos → Jobs → Erros → Documentação/Health. Um commit por módulo, com `./mvnw test` ao final de cada um.
+
+---
+
+## Progresso da Fase 2
+
+Branch: `feat/fase2-implementacao`. Cada etapa termina com `./mvnw clean compile` e `./mvnw test` verdes.
+
+| Etapa | Status | Commit | Resumo | Pendências |
+|---|---|---|---|---|
+| 0 — Fazer compilar | ✅ | _ver git log_ | Corrigidos os 13 erros (getters/setters, IDs `UUID` nos requests, `findByActiveTrue`, `ReservaNaoConfirmadaException` → `LabManagerException` 422, `DaoAuthenticationProvider(PasswordEncoder)` + `setUserDetailsService`, `findByTokenConfirmacao`/`findByCodigoQr`). Removido `config/SecurityConfig.java` (bean duplicado). `ReserveService.create` não sobrescreve mais token/QR (RN12). `contextLoads` marcado com `@Tag("integration")` e excluído do `./mvnw test` padrão (perfil `-Pintegration` para rodar). | — |
+
+### Desvios e decisões registradas
+- **D0.1** — A exclusão de testes `integration` foi antecipada da Etapa 10 para a Etapa 0. Sem isso, o `./mvnw test` de cada etapa falharia por falta de banco (o Docker Desktop não está ativo nesta máquina), e a verificação por etapa perderia o sentido.

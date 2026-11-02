@@ -40,7 +40,7 @@ public class ReserveService {
             throw new RegraDeNegocioException("O horário de fim deve ser após o horário de início.");
         }
 
-        Laboratory lab = (Laboratory) laboratoryRepository.findById(dto.laboratoryId())
+        Laboratory lab = laboratoryRepository.findById(dto.laboratoryId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório não encontrado."));
 
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -57,11 +57,9 @@ public class ReserveService {
         Reserve reserve = new Reserve();
         reserve.setLaboratory(lab);
         reserve.setUser(user);
-        reserve.setDataHorainicio(dto.dataHoraInicio());
+        reserve.setDataHoraInicio(dto.dataHoraInicio());
         reserve.setDataHoraFim(dto.dataHoraFim());
         reserve.setStatus(ReserveStatus.PENDENTE);
-        reserve.setConfirmationToken(UUID.randomUUID().toString());
-        reserve.setQRCode(UUID.randomUUID().toString());
         reserve.setEmailConfirmacaoEnviado(false);
 
         Reserve saved = reserveRepository.save(reserve);
@@ -95,7 +93,7 @@ public class ReserveService {
 
     @Transactional
     public void confirmByToken(String token) {
-        Reserve reserve = reserveRepository.findByConfirmationToken(token)
+        Reserve reserve = reserveRepository.findByTokenConfirmacao(token)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Token de confirmação inválido."));
 
         if (reserve.getStatus() != ReserveStatus.PENDENTE) {
@@ -114,7 +112,7 @@ public class ReserveService {
 
         try {
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            var bitMatrix = qrCodeWriter.encode(reserve.getQRCode(), BarcodeFormat.QR_CODE, 250, 250);
+            var bitMatrix = qrCodeWriter.encode(reserve.getCodigoQr(), BarcodeFormat.QR_CODE, 250, 250);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
             return outputStream.toByteArray();
@@ -130,7 +128,7 @@ public class ReserveService {
                 r.getLaboratory().getName(),
                 r.getUser().getId(),
                 r.getUser().getName(),
-                r.getDataHorainicio(),
+                r.getDataHoraInicio(),
                 r.getDataHoraFim(),
                 r.getStatus(),
                 r.getDataConfirmacao()

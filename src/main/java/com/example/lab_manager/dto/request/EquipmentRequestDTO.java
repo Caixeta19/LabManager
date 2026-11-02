@@ -13,5 +13,5 @@ public record EquipmentRequestDTO(
         String description,
 
         @NotNull(message = "O ID do laboratório é obrigatório")
-        Long laboratoryId
+        java.util.UUID laboratoryId
 ) {}

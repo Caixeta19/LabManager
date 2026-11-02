@@ -35,7 +35,7 @@ public class AuthService {
                     token,
                     user.getId(),
                     user.getEmail(),
-                    user.getRole().name()
+                    user.getType().name()
             );
 
         } catch (Exception e) {

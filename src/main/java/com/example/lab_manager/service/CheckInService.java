@@ -25,7 +25,7 @@ public class CheckInService {
     public CheckInResponseDTO performCheckIn(String codigoQr) {
         LocalDateTime agora = LocalDateTime.now();
 
-        Reserve reserve = reserveRepository.findByQRCode(codigoQr)
+        Reserve reserve = reserveRepository.findByCodigoQr(codigoQr)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("QR Code inválido ou fora do horário permitido."));
 
         if (reserve.getStatus() != ReserveStatus.CONFIRMADA) {

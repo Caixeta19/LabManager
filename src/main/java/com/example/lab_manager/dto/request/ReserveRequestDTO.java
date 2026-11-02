@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 public record ReserveRequestDTO(
         @NotNull(message = "O ID do laboratório é obrigatório")
-        Long laboratoryId,
+        java.util.UUID laboratoryId,
 
         @NotNull(message = "A data/hora de início é obrigatória")
         @Future(message = "A data de início deve ser no futuro")

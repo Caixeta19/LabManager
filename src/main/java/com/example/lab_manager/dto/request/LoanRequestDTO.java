@@ -7,7 +7,7 @@ import java.time.LocalDate;
 
 public record LoanRequestDTO(
         @NotNull(message = "O ID do equipamento é obrigatório")
-        Long equipmentId,
+        java.util.UUID equipmentId,
 
         @NotNull(message = "A data de devolução prevista é obrigatória")
         @Future(message = "A data de devolução prevista deve ser uma data futura")

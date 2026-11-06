@@ -75,7 +75,8 @@ public class UserService {
                 user.getEmail(),
                 user.getRegistration(),
                 user.getType(),
-                user.isActive()
+                user.isActive(),
+                user.getLastLoginAt()
         );
     }
 }

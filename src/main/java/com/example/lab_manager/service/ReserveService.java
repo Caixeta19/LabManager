@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -51,6 +52,10 @@ public class ReserveService {
             throw new RegraDeNegocioException("Laboratório inativo.", "ERR_LAB_001");
         }
 
+        if (lab.isMaintenance()) {
+            throw new RegraDeNegocioException("Laboratório em manutenção.", "ERR_LAB_002");
+        }
+
         User user = currentUserService.getUsuarioAutenticado();
 
         // RN11 / RF12
@@ -66,6 +71,7 @@ public class ReserveService {
                 .user(user)
                 .dataHoraInicio(dto.dataHoraInicio())
                 .dataHoraFim(dto.dataHoraFim())
+                .reason(StringUtils.hasText(dto.reason()) ? dto.reason().trim() : null)
                 .build();
 
         return toDTO(reserveRepository.save(reserve));
@@ -151,7 +157,10 @@ public class ReserveService {
                 r.getDataHoraInicio(),
                 r.getDataHoraFim(),
                 r.getStatus(),
-                r.getDataConfirmacao()
+                r.getDataConfirmacao(),
+                r.getUser().getType(),
+                r.getReason(),
+                r.getCreatedAt()
         );
     }
 }

@@ -1,5 +1,8 @@
 package com.example.lab_manager.dto.response;
 
+import com.example.lab_manager.enums.LaboratoryStatus;
+
+import java.util.List;
 import java.util.UUID;
 
 public record LaboratoryResponseDTO(
@@ -8,5 +11,8 @@ public record LaboratoryResponseDTO(
         String localization,
         Integer capacity,
         String description,
-        Boolean active
+        Boolean active,
+        LaboratoryStatus status,
+        String openingHours,
+        List<String> resources
 ) {}

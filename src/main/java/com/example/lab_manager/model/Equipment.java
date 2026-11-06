@@ -28,6 +28,8 @@ public class Equipment {
 
     private String description;
 
+    private String responsible;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(nullable = false)

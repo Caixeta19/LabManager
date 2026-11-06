@@ -2,6 +2,7 @@ package com.example.lab_manager.service;
 
 import com.example.lab_manager.dto.request.LaboratoryRequestDTO;
 import com.example.lab_manager.dto.response.LaboratoryResponseDTO;
+import com.example.lab_manager.enums.LaboratoryStatus;
 import com.example.lab_manager.exceptions.RecursoNaoEncontradoException;
 import com.example.lab_manager.model.Laboratory;
 import com.example.lab_manager.repository.LaboratoryRepository;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -26,7 +28,9 @@ public class LaboratoryService {
         lab.setLocalization(dto.localization());
         lab.setCapacity(dto.capacity());
         lab.setDescription(dto.description());
-        lab.setActive(true);
+        lab.setOpeningHours(dto.openingHours());
+        lab.setResources(normalizarRecursos(dto.resources()));
+        lab.applyStatus(dto.status() != null ? dto.status() : LaboratoryStatus.ATIVO);
 
         Laboratory saved = laboratoryRepository.save(lab);
         return toDTO(saved);
@@ -53,6 +57,11 @@ public class LaboratoryService {
         lab.setLocalization(dto.localization());
         lab.setCapacity(dto.capacity());
         lab.setDescription(dto.description());
+        lab.setOpeningHours(dto.openingHours());
+        lab.setResources(normalizarRecursos(dto.resources()));
+        if (dto.status() != null) {
+            lab.applyStatus(dto.status());
+        }
 
         return toDTO(laboratoryRepository.save(lab));
     }
@@ -65,6 +74,18 @@ public class LaboratoryService {
         laboratoryRepository.save(lab);
     }
 
+    /** Cada recurso ocupa uma linha da coluna: quebras de linha e itens vazios ficam de fora. */
+    private static List<String> normalizarRecursos(List<String> recursos) {
+        if (recursos == null) {
+            return List.of();
+        }
+        return recursos.stream()
+                .filter(Objects::nonNull)
+                .map(recurso -> recurso.replaceAll("\\s+", " ").trim())
+                .filter(recurso -> !recurso.isEmpty())
+                .toList();
+    }
+
     private LaboratoryResponseDTO toDTO(Laboratory lab) {
         return new LaboratoryResponseDTO(
                 lab.getId(),
@@ -72,7 +93,10 @@ public class LaboratoryService {
                 lab.getLocalization(),
                 lab.getCapacity(),
                 lab.getDescription(),
-                lab.getActive()
+                lab.getActive(),
+                lab.status(),
+                lab.getOpeningHours(),
+                lab.getResources() != null ? lab.getResources() : List.of()
         );
     }
 }

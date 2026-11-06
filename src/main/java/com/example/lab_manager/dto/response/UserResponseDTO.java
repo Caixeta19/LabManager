@@ -1,6 +1,8 @@
 package com.example.lab_manager.dto.response;
 
 import com.example.lab_manager.enums.UserType;
+
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record UserResponseDTO(
@@ -9,5 +11,6 @@ public record UserResponseDTO(
         String email,
         String registration,
         UserType type,
-        Boolean active
+        Boolean active,
+        LocalDateTime lastLoginAt
 ) {}

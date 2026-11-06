@@ -2,7 +2,9 @@ package com.example.lab_manager.controller;
 
 import com.example.lab_manager.dto.request.LaboratoryRequestDTO;
 import com.example.lab_manager.dto.response.LaboratoryResponseDTO;
+import com.example.lab_manager.dto.response.OccupiedSlotDTO;
 import com.example.lab_manager.service.LaboratoryService;
+import com.example.lab_manager.service.ReserveService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class LaboratoryController {
 
     private final LaboratoryService laboratoryService;
+    private final ReserveService reserveService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -66,6 +69,17 @@ public class LaboratoryController {
     })
     public ResponseEntity<LaboratoryResponseDTO> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(laboratoryService.findById(id));
+    }
+
+    @GetMapping("/{id}/ocupacao")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Horários ocupados nos próximos 14 dias, sem identificar quem reservou")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Horários ocupados"),
+            @ApiResponse(responseCode = "404", description = "Laboratório não encontrado")
+    })
+    public ResponseEntity<List<OccupiedSlotDTO>> occupiedSlots(@PathVariable UUID id) {
+        return ResponseEntity.ok(reserveService.findOcupacao(id));
     }
 
     @PutMapping("/{id}")

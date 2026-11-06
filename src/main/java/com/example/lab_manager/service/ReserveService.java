@@ -1,6 +1,7 @@
 package com.example.lab_manager.service;
 
 import com.example.lab_manager.dto.request.ReserveRequestDTO;
+import com.example.lab_manager.dto.response.OccupiedSlotDTO;
 import com.example.lab_manager.dto.response.ReserveResponseDTO;
 import com.example.lab_manager.enums.ReserveStatus;
 import com.example.lab_manager.enums.UserType;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class ReserveService {
 
     static final String MSG_NAO_ENCONTRADA = "Reserva não encontrada.";
+    static final int DIAS_DE_OCUPACAO = 14;
 
     private final ReserveRepository reserveRepository;
     private final LaboratoryRepository laboratoryRepository;
@@ -88,6 +90,19 @@ public class ReserveService {
         User user = currentUserService.getUsuarioAutenticado();
         return reserveRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
                 .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /** Próximos horários ocupados do laboratório, sem identificar quem reservou. */
+    @Transactional(readOnly = true)
+    public List<OccupiedSlotDTO> findOcupacao(UUID laboratoryId) {
+        if (!laboratoryRepository.existsById(laboratoryId)) {
+            throw new RecursoNaoEncontradoException("Laboratório não encontrado.");
+        }
+        LocalDateTime agora = LocalDateTime.now(clock);
+        return reserveRepository.findOcupacao(laboratoryId, agora, agora.plusDays(DIAS_DE_OCUPACAO),
+                        ReserveRepository.STATUS_IGNORADOS_NO_CONFLITO).stream()
+                .map(r -> new OccupiedSlotDTO(r.getDataHoraInicio(), r.getDataHoraFim()))
                 .collect(Collectors.toList());
     }
 

@@ -48,6 +48,15 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
             "WHERE r.status = :status AND r.dataHoraInicio <= :agora AND r.dataHoraFim > :agora")
     Set<UUID> findLaboratoriosEmUso(@Param("status") ReserveStatus status, @Param("agora") LocalDateTime agora);
 
+    /** Reservas que ainda bloqueiam o laboratório em [de, ate), em ordem de início. */
+    @Query("SELECT r FROM Reserve r " +
+            "WHERE r.laboratory.id = :labId AND r.status NOT IN :statusIgnorados " +
+            "AND r.dataHoraFim > :de AND r.dataHoraInicio < :ate ORDER BY r.dataHoraInicio")
+    List<Reserve> findOcupacao(@Param("labId") UUID labId,
+                               @Param("de") LocalDateTime de,
+                               @Param("ate") LocalDateTime ate,
+                               @Param("statusIgnorados") Collection<ReserveStatus> statusIgnorados);
+
     /** RF21/RN15: reservas que devem receber o e-mail de confirmação agora (início na janela informada). */
     @Query("SELECT r FROM Reserve r JOIN FETCH r.user JOIN FETCH r.laboratory " +
             "WHERE r.status = :status AND r.emailConfirmacaoEnviado = false " +

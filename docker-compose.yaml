@@ -1,3 +1,10 @@
+# Sistema completo: banco, API, front, e-mail de teste e criação do primeiro ADMIN.
+#
+#   cp .env.example .env      (preencha o JWT_SECRET)
+#   docker compose up --build
+#
+# O front é buildado a partir do repositório LabManagerFrontend, que deve estar
+# na mesma pasta que este (../LabManagerFrontend). Outro lugar: defina FRONT_DIR no .env.
 services:
   postgres:
     image: postgres:16
@@ -23,6 +30,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     ports:
       - "${APP_PORT:-8080}:8080"
     # Variáveis lidas do arquivo .env (copie de .env.example). Ver README, "Variáveis de ambiente".
@@ -32,21 +41,82 @@ services:
       DB_PASSWORD: labmanager
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
-      MAIL_HOST: ${MAIL_HOST:-}
-      MAIL_PORT: ${MAIL_PORT:-587}
+      # Padrão: Mailpit (abaixo). Para SMTP real, troque no .env.
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@labmanager.local}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       APP_FRONT_URL: ${APP_FRONT_URL:-http://localhost:5173}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      AUTH_MAX_ATTEMPTS: ${AUTH_MAX_ATTEMPTS:-5}
+      AUTH_LOCK_MINUTES: ${AUTH_LOCK_MINUTES:-15}
       # As datas do sistema são horário de Brasília; sem isto o container usaria UTC
       TZ: America/Sao_Paulo
     restart: unless-stopped
 
+  front:
+    build:
+      context: ${FRONT_DIR:-../LabManagerFrontend}
+      args:
+        # Endereço da API visto pelo NAVEGADOR (não pelo container)
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    container_name: lab_manager_front
+    depends_on:
+      - app
+    ports:
+      - "${FRONT_PORT:-5173}:80"
+    restart: unless-stopped
+
+  # Captura todos os e-mails enviados pela API. Nada sai para a internet.
+  # Caixa de entrada: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21.0
+    container_name: lab_manager_mailpit
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+    restart: unless-stopped
+
+  # Cria o primeiro ADMIN depois que o Flyway termina, só se ainda não existir nenhum.
+  # Roda uma vez e encerra.
+  admin-seed:
+    image: postgres:16
+    container_name: lab_manager_admin_seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: labmanager
+      PGPASSWORD: labmanager
+      PGDATABASE: labmanager
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@labmanager.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+    command:
+      - sh
+      - -c
+      - |
+        until psql -tAc "SELECT 1 FROM flyway_schema_history WHERE version = '3' AND success" 2>/dev/null | grep -q 1; do
+          echo "Aguardando as migrations da API..."
+          sleep 3
+        done
+        psql -v ON_ERROR_STOP=1 -v nome="$$ADMIN_NAME" -v email="$$ADMIN_EMAIL" -v senha="$$ADMIN_PASSWORD" <<'SQL'
+        INSERT INTO users (name, email, password, registration, type)
+        SELECT :'nome', lower(:'email'), crypt(:'senha', gen_salt('bf', 10)), 'ADMIN-001', 'ADMIN'
+        WHERE NOT EXISTS (SELECT 1 FROM users WHERE type = 'ADMIN');
+        SQL
+        echo "Primeiro ADMIN pronto: $$ADMIN_EMAIL"
+    restart: "no"
+
   pgadmin:
     image: dpage/pgadmin4:8.9
     container_name: lab_manager_pgadmin
+    profiles: ["tools"]   # opcional: docker compose --profile tools up
     depends_on:
       postgres:
         condition: service_healthy

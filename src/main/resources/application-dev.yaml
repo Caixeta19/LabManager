@@ -21,3 +21,7 @@ spring:
 
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
+  front-url: ${APP_FRONT_URL:http://localhost:5173}
+  mail:
+    # Sem SMTP configurado, escreve no log o link de redefinição de senha. Nunca ative em produção.
+    log-reset-link: true

@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.datasource.password=${IT_DB_PASSWORD:labmanager}",
         IntegrationTestProperties.JWT_SECRET,
         IntegrationTestProperties.BASE_URL,
+        IntegrationTestProperties.FRONT_URL,
         IntegrationTestProperties.MAIL_HOST,
         IntegrationTestProperties.MAIL_USERNAME,
         IntegrationTestProperties.MAIL_PASSWORD

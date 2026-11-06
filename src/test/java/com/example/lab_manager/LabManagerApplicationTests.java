@@ -20,6 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(properties = {
 		IntegrationTestProperties.JWT_SECRET,
 		IntegrationTestProperties.BASE_URL,
+		IntegrationTestProperties.FRONT_URL,
 		IntegrationTestProperties.MAIL_HOST,
 		IntegrationTestProperties.MAIL_USERNAME,
 		IntegrationTestProperties.MAIL_PASSWORD

@@ -50,6 +50,8 @@ jwt:
 app:
   # Usada para montar o link de confirmação enviado no e-mail
   base-url: ${APP_BASE_URL}
+  # Usada para montar o link de redefinição de senha
+  front-url: ${APP_FRONT_URL}
   cors:
     # Origens do front, separadas por vírgula
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

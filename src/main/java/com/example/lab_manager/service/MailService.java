@@ -22,20 +22,25 @@ public class MailService {
 
     static final String TEMPLATE = "email-confirmacao";
     static final String ASSUNTO = "LabManager - confirme sua reserva";
+    static final String TEMPLATE_REDEFINIR_SENHA = "email-redefinir-senha";
+    static final String ASSUNTO_REDEFINIR_SENHA = "LabManager - redefina sua senha";
     private static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm");
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final String baseUrl;
+    private final String frontUrl;
     private final String remetente;
 
     public MailService(JavaMailSender mailSender,
                        TemplateEngine templateEngine,
                        @Value("${app.base-url}") String baseUrl,
+                       @Value("${app.front-url}") String frontUrl,
                        @Value("${app.mail.from}") String remetente) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.baseUrl = semBarraFinal(baseUrl);
+        this.frontUrl = semBarraFinal(frontUrl);
         this.remetente = remetente;
     }
 
@@ -54,18 +59,38 @@ public class MailService {
         context.setVariable("inicio", reserve.getDataHoraInicio().format(FORMATO));
         context.setVariable("fim", reserve.getDataHoraFim().format(FORMATO));
         context.setVariable("link", linkConfirmacao(reserve));
-        String html = templateEngine.process(TEMPLATE, context);
+        enviar(reserve.getUser().getEmail(), ASSUNTO, templateEngine.process(TEMPLATE, context));
+    }
 
+    public String linkRedefinicaoSenha(String token) {
+        return frontUrl + "/redefinir-senha?token=" + token;
+    }
+
+    /**
+     * @throws MailException se o SMTP estiver indisponível ou recusar a mensagem
+     */
+    public void enviarRedefinicaoSenha(String nome, String destino, String token) {
+        Context context = new Context(Locale.forLanguageTag("pt-BR"));
+        context.setVariable("nome", nome);
+        context.setVariable("link", linkRedefinicaoSenha(token));
+        enviar(destino, ASSUNTO_REDEFINIR_SENHA, templateEngine.process(TEMPLATE_REDEFINIR_SENHA, context));
+    }
+
+    private void enviar(String destino, String assunto, String html) {
         MimeMessage message = mailSender.createMimeMessage();
         try {
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
             helper.setFrom(remetente);
-            helper.setTo(reserve.getUser().getEmail());
-            helper.setSubject(ASSUNTO);
+            helper.setTo(destino);
+            helper.setSubject(assunto);
             helper.setText(html, true);
         } catch (MessagingException e) {
-            throw new MailPreparationException("Falha ao montar o e-mail de confirmação.", e);
+            throw new MailPreparationException("Falha ao montar o e-mail.", e);
         }
         mailSender.send(message);
+    }
+
+    private static String semBarraFinal(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

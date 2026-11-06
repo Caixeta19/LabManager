@@ -1,10 +1,13 @@
 package com.example.lab_manager.controller;
 
+import com.example.lab_manager.dto.request.ForgotPasswordRequestDTO;
 import com.example.lab_manager.dto.request.LoginRequestDTO;
 import com.example.lab_manager.dto.request.RegisterRequestDTO;
+import com.example.lab_manager.dto.request.ResetPasswordRequestDTO;
 import com.example.lab_manager.dto.response.AuthResponseDTO;
 import com.example.lab_manager.dto.response.UserResponseDTO;
 import com.example.lab_manager.service.AuthService;
+import com.example.lab_manager.service.PasswordResetService;
 import com.example.lab_manager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -25,6 +28,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/auth/login")
     @SecurityRequirements
@@ -49,5 +53,30 @@ public class AuthController {
     })
     public ResponseEntity<UserResponseDTO> register(@Valid @RequestBody RegisterRequestDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(dto));
+    }
+
+    @PostMapping("/auth/forgot-password")
+    @SecurityRequirements
+    @Operation(summary = "Envia o link de redefinição de senha; a resposta não revela se o e-mail existe (público)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Pedido recebido"),
+            @ApiResponse(responseCode = "422", description = "ERR_VALIDACAO - e-mail em formato inválido")
+    })
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO dto) {
+        passwordResetService.solicitar(dto.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/auth/reset-password")
+    @SecurityRequirements
+    @Operation(summary = "Troca a senha usando o token recebido por e-mail (público)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha alterada"),
+            @ApiResponse(responseCode = "400", description = "ERR_AUTH_002 - link inválido ou expirado"),
+            @ApiResponse(responseCode = "422", description = "ERR_VALIDACAO - campos inválidos")
+    })
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO dto) {
+        passwordResetService.redefinir(dto);
+        return ResponseEntity.noContent().build();
     }
 }

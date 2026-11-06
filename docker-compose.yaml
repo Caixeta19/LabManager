@@ -42,10 +42,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
       # Padrão: Mailpit (abaixo). Para SMTP real, troque no .env.
+      # A API sempre autentica no SMTP: usuário e senha não podem ficar vazios (o Mailpit aceita qualquer um).
       MAIL_HOST: ${MAIL_HOST:-mailpit}
       MAIL_PORT: ${MAIL_PORT:-1025}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-labmanager}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-labmanager}
       MAIL_FROM: ${MAIL_FROM:-no-reply@labmanager.local}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       APP_FRONT_URL: ${APP_FRONT_URL:-http://localhost:5173}

@@ -1,7 +1,9 @@
 package com.example.lab_manager.service;
 
+import com.example.lab_manager.dto.request.RegisterRequestDTO;
 import com.example.lab_manager.dto.request.UserRequestDTO;
 import com.example.lab_manager.dto.response.UserResponseDTO;
+import com.example.lab_manager.enums.UserType;
 import com.example.lab_manager.exceptions.RecursoNaoEncontradoException;
 import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.model.User;
@@ -48,6 +50,15 @@ public class UserService {
         return toDTO(userRepository.save(user));
     }
 
+    /** Autocadastro público: sempre ALUNO, com as mesmas validações do cadastro feito pelo ADMIN. */
+    @Transactional
+    public UserResponseDTO register(RegisterRequestDTO dto) {
+        if (userRepository.existsByEmailIgnoreCase(dto.email().trim())) {
+            throw emailDuplicado();
+        }
+        return create(new UserRequestDTO(dto.name(), dto.email(), dto.password(), dto.registration(), UserType.ALUNO));
+    }
+
     @Transactional(readOnly = true)
     public List<UserResponseDTO> findAll() {
         return userRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
@@ -66,6 +77,11 @@ public class UserService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
         user.setActive(false); // RN03 - soft delete
         userRepository.save(user);
+    }
+
+    private static RegraDeNegocioException emailDuplicado() {
+        return new RegraDeNegocioException("Já existe um usuário cadastrado com este e-mail.",
+                "ERR_USER_002", HttpStatus.CONFLICT);
     }
 
     private UserResponseDTO toDTO(User user) {

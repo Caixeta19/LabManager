@@ -46,6 +46,17 @@ public class LaboratoryController {
         return ResponseEntity.ok(laboratoryService.findAllActive());
     }
 
+    @GetMapping("/todos")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lista todos os laboratórios, inclusive os inativos (ADMIN)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de laboratórios"),
+            @ApiResponse(responseCode = "403", description = "ERR_FORBIDDEN - usuário não é ADMIN")
+    })
+    public ResponseEntity<List<LaboratoryResponseDTO>> listAll() {
+        return ResponseEntity.ok(laboratoryService.findAll());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Busca laboratório por ID")
@@ -59,7 +70,7 @@ public class LaboratoryController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Atualiza laboratório (ADMIN)")
+    @Operation(summary = "Atualiza laboratório, inclusive o status ATIVO/INATIVO/MANUTENCAO (ADMIN)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Laboratório atualizado"),
             @ApiResponse(responseCode = "403", description = "ERR_FORBIDDEN - usuário não é ADMIN"),

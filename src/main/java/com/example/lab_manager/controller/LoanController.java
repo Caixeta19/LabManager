@@ -50,6 +50,14 @@ public class LoanController {
         return ResponseEntity.ok(loanService.findAll());
     }
 
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lista os empréstimos do usuário logado, do mais recente para o mais antigo")
+    @ApiResponse(responseCode = "200", description = "Lista de empréstimos")
+    public ResponseEntity<List<LoanResponseDTO>> listMine() {
+        return ResponseEntity.ok(loanService.findMine());
+    }
+
     @PutMapping("/{id}/devolver")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Registra a devolução e volta o equipamento para DISPONIVEL (ADMIN)")

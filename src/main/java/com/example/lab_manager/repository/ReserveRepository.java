@@ -25,6 +25,8 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
 
     Optional<Reserve> findByCodigoQr(String codigoQr);
 
+    List<Reserve> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
     @Query("SELECT COUNT(r) > 0 FROM Reserve r " +
             "WHERE r.laboratory.id = :labId " +
             "AND r.status NOT IN :statusIgnorados " +

@@ -9,9 +9,12 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface LoanRepository extends JpaRepository<Loan, UUID> {
+
+    List<Loan> findByUserIdOrderByDataRetiradaDesc(UUID userId);
 
     /**
      * RN24 / decisão 14: em lote, empréstimos {@code de} (ATIVO) com {@code dataDevolucaoPrevista < hoje}

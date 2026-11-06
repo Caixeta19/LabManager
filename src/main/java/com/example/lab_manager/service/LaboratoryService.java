@@ -42,6 +42,11 @@ public class LaboratoryService {
     }
 
     @Transactional(readOnly = true)
+    public List<LaboratoryResponseDTO> findAll() {
+        return laboratoryRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public LaboratoryResponseDTO findById(UUID id) {
         Laboratory lab = laboratoryRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório não encontrado."));

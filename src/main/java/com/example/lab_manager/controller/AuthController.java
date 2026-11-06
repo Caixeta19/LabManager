@@ -43,6 +43,16 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(loginDTO));
     }
 
+    @GetMapping("/auth/me")
+    @Operation(summary = "Dados do usuário logado")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuário logado"),
+            @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado")
+    })
+    public ResponseEntity<UserResponseDTO> me() {
+        return ResponseEntity.ok(userService.findCurrent());
+    }
+
     @PostMapping("/auth/register")
     @SecurityRequirements
     @Operation(summary = "Autocadastro; cria sempre um ALUNO, ignorando qualquer papel enviado (público)")

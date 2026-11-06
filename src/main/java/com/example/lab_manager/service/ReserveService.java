@@ -82,6 +82,15 @@ public class ReserveService {
         return reserveRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    /** Reservas do usuário logado, da mais recente para a mais antiga. */
+    @Transactional(readOnly = true)
+    public List<ReserveResponseDTO> findMine() {
+        User user = currentUserService.getUsuarioAutenticado();
+        return reserveRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     /** Decisão 10: dono, ADMIN ou PROFESSOR. Os demais recebem 404. */
     @Transactional(readOnly = true)
     public ReserveResponseDTO findById(UUID id) {

@@ -23,6 +23,10 @@ public class SecurityConfig {
     /** Rotas públicas (RN25). */
     static final String[] PUBLIC_PATHS = {
             "/auth/login",
+            "/auth/register",
+            "/auth/forgot-password",
+            "/auth/reset-password",
+            "/public/**",
             "/reserves/confirmar/**",
             "/health",
             "/docs", "/docs/**",

@@ -19,6 +19,9 @@ RUN ./mvnw clean package -DskipTests -B
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# As reservas são em horário de Brasília; em UTC, @Future, check-in e jobs ficariam 3h adiantados
+ENV TZ=America/Sao_Paulo
+
 # Copia apenas o .jar gerado na etapa de build
 COPY --from=build /app/target/*.jar app.jar
 

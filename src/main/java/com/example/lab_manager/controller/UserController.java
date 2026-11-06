@@ -1,6 +1,7 @@
 package com.example.lab_manager.controller;
 
 import com.example.lab_manager.dto.request.UserRequestDTO;
+import com.example.lab_manager.dto.request.UserUpdateRequestDTO;
 import com.example.lab_manager.dto.response.UserResponseDTO;
 import com.example.lab_manager.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,6 +58,18 @@ public class UserController {
     })
     public ResponseEntity<UserResponseDTO> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.findById(id));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Edita nome, e-mail, matrícula, papel, situação e, opcionalmente, a senha")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Usuário atualizado"),
+            @ApiResponse(responseCode = "404", description = "Usuário não encontrado"),
+            @ApiResponse(responseCode = "409", description = "ERR_USER_001 - matrícula já cadastrada; ERR_USER_002 - e-mail já cadastrado"),
+            @ApiResponse(responseCode = "422", description = "ERR_VALIDACAO - campos inválidos")
+    })
+    public ResponseEntity<UserResponseDTO> updateUser(@PathVariable UUID id, @Valid @RequestBody UserUpdateRequestDTO dto) {
+        return ResponseEntity.ok(userService.update(id, dto));
     }
 
     @DeleteMapping("/{id}")

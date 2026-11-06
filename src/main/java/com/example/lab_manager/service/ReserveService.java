@@ -1,6 +1,7 @@
 package com.example.lab_manager.service;
 
 import com.example.lab_manager.dto.request.ReserveRequestDTO;
+import com.example.lab_manager.dto.response.OccupiedSlotDTO;
 import com.example.lab_manager.dto.response.ReserveResponseDTO;
 import com.example.lab_manager.enums.ReserveStatus;
 import com.example.lab_manager.enums.UserType;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 public class ReserveService {
 
     static final String MSG_NAO_ENCONTRADA = "Reserva não encontrada.";
+    static final int DIAS_DE_OCUPACAO = 14;
 
     private final ReserveRepository reserveRepository;
     private final LaboratoryRepository laboratoryRepository;
@@ -51,6 +54,10 @@ public class ReserveService {
             throw new RegraDeNegocioException("Laboratório inativo.", "ERR_LAB_001");
         }
 
+        if (lab.isMaintenance()) {
+            throw new RegraDeNegocioException("Laboratório em manutenção.", "ERR_LAB_002");
+        }
+
         User user = currentUserService.getUsuarioAutenticado();
 
         // RN11 / RF12
@@ -66,6 +73,7 @@ public class ReserveService {
                 .user(user)
                 .dataHoraInicio(dto.dataHoraInicio())
                 .dataHoraFim(dto.dataHoraFim())
+                .reason(StringUtils.hasText(dto.reason()) ? dto.reason().trim() : null)
                 .build();
 
         return toDTO(reserveRepository.save(reserve));
@@ -74,6 +82,28 @@ public class ReserveService {
     @Transactional(readOnly = true)
     public List<ReserveResponseDTO> findAll() {
         return reserveRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    /** Reservas do usuário logado, da mais recente para a mais antiga. */
+    @Transactional(readOnly = true)
+    public List<ReserveResponseDTO> findMine() {
+        User user = currentUserService.getUsuarioAutenticado();
+        return reserveRepository.findByUserIdOrderByCreatedAtDesc(user.getId()).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /** Próximos horários ocupados do laboratório, sem identificar quem reservou. */
+    @Transactional(readOnly = true)
+    public List<OccupiedSlotDTO> findOcupacao(UUID laboratoryId) {
+        if (!laboratoryRepository.existsById(laboratoryId)) {
+            throw new RecursoNaoEncontradoException("Laboratório não encontrado.");
+        }
+        LocalDateTime agora = LocalDateTime.now(clock);
+        return reserveRepository.findOcupacao(laboratoryId, agora, agora.plusDays(DIAS_DE_OCUPACAO),
+                        ReserveRepository.STATUS_IGNORADOS_NO_CONFLITO).stream()
+                .map(r -> new OccupiedSlotDTO(r.getDataHoraInicio(), r.getDataHoraFim()))
+                .collect(Collectors.toList());
     }
 
     /** Decisão 10: dono, ADMIN ou PROFESSOR. Os demais recebem 404. */
@@ -151,7 +181,10 @@ public class ReserveService {
                 r.getDataHoraInicio(),
                 r.getDataHoraFim(),
                 r.getStatus(),
-                r.getDataConfirmacao()
+                r.getDataConfirmacao(),
+                r.getUser().getType(),
+                r.getReason(),
+                r.getCreatedAt()
         );
     }
 }

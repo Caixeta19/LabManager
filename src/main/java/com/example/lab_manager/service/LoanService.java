@@ -63,6 +63,15 @@ public class LoanService {
         return loanRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    /** Empréstimos do usuário logado, do mais recente para o mais antigo. */
+    @Transactional(readOnly = true)
+    public List<LoanResponseDTO> findMine() {
+        User user = currentUserService.getUsuarioAutenticado();
+        return loanRepository.findByUserIdOrderByDataRetiradaDesc(user.getId()).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     /** RN09: aceita empréstimos ATIVO ou ATRASADO. */
     @Transactional
     public LoanResponseDTO returnEquipment(UUID loanId) {

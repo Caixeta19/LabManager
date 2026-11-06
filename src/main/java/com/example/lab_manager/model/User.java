@@ -50,6 +50,10 @@ public class User {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    /** Último login com sucesso, exibido como "último acesso" no AdminUsers. */
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
     @OneToMany(mappedBy = "user")
     private List<Reserve> reserves;
 

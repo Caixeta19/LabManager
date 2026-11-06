@@ -66,6 +66,15 @@ class AuthServiceTest {
         assertThat(dto.role()).isEqualTo("ALUNO");
         assertThat(user.getFailedAttempts()).isZero();
         assertThat(user.getLockedUntil()).isNull();
+        assertThat(user.getLastLoginAt()).isEqualTo(AGORA);
+    }
+
+    @Test
+    void loginErradoNaoAtualizaOUltimoAcesso() {
+        assertThatThrownBy(() -> service.login(login("errada")))
+                .isInstanceOf(CredenciaisInvalidasException.class);
+
+        assertThat(user.getLastLoginAt()).isNull();
     }
 
     @Test

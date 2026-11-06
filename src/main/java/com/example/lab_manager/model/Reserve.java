@@ -53,6 +53,9 @@ public class Reserve {
 
     private LocalDateTime dataConfirmacao;
 
+    @Column(length = 500)
+    private String reason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

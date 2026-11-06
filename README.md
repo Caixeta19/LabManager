@@ -437,14 +437,22 @@ CREATE TABLE checkins (
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | POST | `/auth/login` | Público | Autenticação, retorna JWT |
+| POST | `/auth/register` | Público | Autocadastro; cria sempre ALUNO |
+| POST | `/auth/forgot-password` | Público | Envia o link de redefinição; responde sempre 204 |
+| POST | `/auth/reset-password` | Público | Troca a senha com o token do e-mail |
+| GET | `/auth/me` | Autenticado | Dados do usuário logado |
+| GET | `/public/resumo` | Público | Totais e situação dos laboratórios, sem dados pessoais |
 | POST | `/users` | ADMIN | Criar usuário |
 | GET | `/users` | ADMIN | Listar usuários |
 | GET | `/users/{id}` | ADMIN | Buscar usuário |
+| PUT | `/users/{id}` | ADMIN | Editar usuário, reativar e trocar a senha (opcional) |
 | DELETE | `/users/{id}` | ADMIN | Desativar usuário |
 | POST | `/laboratories` | ADMIN | Criar laboratório |
 | GET | `/laboratories` | Autenticado | Listar laboratórios ativos |
+| GET | `/laboratories/todos` | ADMIN | Listar todos, inclusive inativos |
 | GET | `/laboratories/{id}` | Autenticado | Buscar laboratório |
-| PUT | `/laboratories/{id}` | ADMIN | Atualizar laboratório |
+| GET | `/laboratories/{id}/ocupacao` | Autenticado | Horários ocupados nos próximos 14 dias, sem identificar quem reservou |
+| PUT | `/laboratories/{id}` | ADMIN | Atualizar laboratório, inclusive o status (ATIVO, INATIVO, MANUTENCAO) |
 | DELETE | `/laboratories/{id}` | ADMIN | Desativar laboratório |
 | POST | `/equipments` | ADMIN | Criar equipamento |
 | GET | `/equipments` | Autenticado | Listar equipamentos |
@@ -452,6 +460,7 @@ CREATE TABLE checkins (
 | PUT | `/equipments/{id}` | ADMIN | Atualizar equipamento |
 | POST | `/reserves` | ALUNO, PROFESSOR | Criar reserva |
 | GET | `/reserves` | ADMIN, PROFESSOR | Listar reservas |
+| GET | `/reserves/me` | Autenticado | Reservas do usuário logado, da mais recente para a mais antiga |
 | GET | `/reserves/{id}` | Dono, ADMIN, PROFESSOR | Buscar reserva |
 | PUT | `/reserves/{id}/cancelar` | Dono ou ADMIN | Cancelar reserva |
 | DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva (rota antiga, *deprecated*) |
@@ -460,6 +469,7 @@ CREATE TABLE checkins (
 | POST | `/checkin/{codigoQr}` | Dono da reserva | Realizar check-in |
 | POST | `/loans` | ALUNO, PROFESSOR | Criar empréstimo |
 | GET | `/loans` | ADMIN | Listar empréstimos |
+| GET | `/loans/me` | Autenticado | Empréstimos do usuário logado, do mais recente para o mais antigo |
 | PUT | `/loans/{id}/devolver` | ADMIN | Registrar devolução |
 | GET | `/health` | Público | Status da aplicação |
 
@@ -470,11 +480,11 @@ CREATE TABLE checkins (
 | 200 | Consulta bem-sucedida |
 | 201 | Recurso criado com sucesso |
 | 204 | Operação sem corpo de resposta (ex: desativar usuário) |
-| 400 | Dados inválidos ou violação de regra de negócio |
+| 400 | Dados inválidos ou violação de regra de negócio (ex: laboratório em manutenção `ERR_LAB_002`, link de senha inválido `ERR_AUTH_002`) |
 | 401 | Não autenticado (token ausente ou inválido) |
 | 403 | Autenticado mas sem permissão para o recurso |
 | 404 | Recurso não encontrado ou QR Code fora da janela de horário |
-| 409 | Conflito: horário (`ERR_RESERVA_001`), reserva não confirmável (`ERR_RESERVA_002`), equipamento indisponível (`ERR_EQUIP_001`), duplicidade (`ERR_USER_001`, `ERR_EQUIP_002`, `ERR_CHECKIN_003`) |
+| 409 | Conflito: horário (`ERR_RESERVA_001`), reserva não confirmável (`ERR_RESERVA_002`), equipamento indisponível (`ERR_EQUIP_001`), duplicidade (`ERR_USER_001`, `ERR_USER_002`, `ERR_EQUIP_002`, `ERR_CHECKIN_003`) |
 | 422 | Erros de `@Valid` (`ERR_VALIDACAO`, com `erros[]`) ou check-in em reserva não confirmada (`ERR_CHECKIN_001`) |
 | 423 | Conta bloqueada por excesso de tentativas de login (`ERR_AUTH_LOCKED`) |
 
@@ -711,6 +721,25 @@ cp .env.example .env   # preencha as variáveis (o .env nunca é commitado)
 docker compose up --build
 ```
 
+Se as portas 5432 ou 8080 já estiverem em uso, defina `DB_PORT` e `APP_PORT` no `.env`.
+
+### Primeiro ADMIN
+
+O autocadastro só cria ALUNO, então o primeiro ADMIN entra por SQL. A extensão `pgcrypto` já vem da migration V1:
+
+```bash
+docker compose exec postgres psql -U labmanager -d labmanager -c "
+  INSERT INTO users (name, email, password, registration, type)
+  VALUES ('Administrador', 'admin@instituicao.edu.br',
+          crypt('TroqueEstaSenha@1', gen_salt('bf', 10)), 'ADMIN-001', 'ADMIN');"
+```
+
+Depois do primeiro login, troque a senha na tela de usuários. Os demais ADMINs e PROFESSORes são criados por essa tela.
+
+### Front
+
+O front fica no repositório `LabManagerFrontend`. Ele roda em `http://localhost:5173`, a origem liberada por padrão em `CORS_ALLOWED_ORIGINS`.
+
 ### Testes
 
 ```bash
@@ -724,6 +753,8 @@ IT_DB_URL=jdbc:postgresql://localhost:5432/labmanager_it ./mvnw test -Pintegrati
 
 Sem perfil ativo, todas as variáveis "Sim" são obrigatórias: a aplicação não sobe sem elas.
 No perfil `dev` (`SPRING_PROFILES_ACTIVE=dev`), só o `JWT_SECRET` é obrigatório; as demais têm defaults locais.
+
+No perfil `dev`, se o SMTP falhar, o link de redefinição de senha é escrito no log (`app.mail.log-reset-link`). Nunca ative isso em produção.
 
 | Variável | Obrigatória | Default | Default no perfil `dev` | Descrição |
 |---|---|---|---|---|
@@ -739,8 +770,11 @@ No perfil `dev` (`SPRING_PROFILES_ACTIVE=dev`), só o `JWT_SECRET` é obrigatór
 | `MAIL_PASSWORD` | Sim | — | vazio | Senha SMTP |
 | `MAIL_FROM` | Não | `no-reply@labmanager.local` | idem | Remetente do e-mail de confirmação |
 | `APP_BASE_URL` | Sim | — | `http://localhost:8080` | URL base usada no link do e-mail |
+| `APP_FRONT_URL` | Sim | — | `http://localhost:5173` | URL do front, usada no link de redefinição de senha |
+| `CORS_ALLOWED_ORIGINS` | Não | `http://localhost:5173` | idem | Origens do front liberadas no CORS, separadas por vírgula |
 | `AUTH_MAX_ATTEMPTS` | Não | `5` | `5` | Tentativas de login erradas seguidas antes do bloqueio |
 | `AUTH_LOCK_MINUTES` | Não | `15` | `15` | Duração do bloqueio de conta, em minutos |
+| `DB_PORT` / `APP_PORT` | Não | `5432` / `8080` | — | Só no `docker-compose.yaml`: portas publicadas no host |
 | `IT_DB_URL` / `IT_DB_USERNAME` / `IT_DB_PASSWORD` | Não | — | — | Só para testes: Postgres descartável do `LabManagerExternalDatabaseTests` |
 
 ---

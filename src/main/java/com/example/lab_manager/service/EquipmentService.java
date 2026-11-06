@@ -38,6 +38,7 @@ public class EquipmentService {
         equipment.setName(dto.name());
         equipment.setHeritage(heritage);
         equipment.setDescription(dto.description());
+        equipment.setResponsible(dto.responsible());
         equipment.setLaboratory(lab);
         equipment.setStatus(EquipmentStatus.DISPONIVEL); // RN06
 
@@ -81,6 +82,7 @@ public class EquipmentService {
         equipment.setName(dto.name());
         equipment.setHeritage(heritage);
         equipment.setDescription(dto.description());
+        equipment.setResponsible(dto.responsible());
 
         return toDTO(equipmentRepository.save(equipment));
     }
@@ -108,7 +110,8 @@ public class EquipmentService {
                 eq.getDescription(),
                 eq.getLaboratory().getId(),
                 eq.getLaboratory().getName(),
-                eq.getStatus()
+                eq.getStatus(),
+                eq.getResponsible()
         );
     }
 }

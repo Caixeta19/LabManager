@@ -1,6 +1,7 @@
 package com.example.lab_manager.dto.response;
 
-import com.example.lab_manager.enums.EquipmentStatus; // Supondo o enum do status
+import com.example.lab_manager.enums.EquipmentStatus;
+
 import java.util.UUID;
 
 public record EquipmentResponseDTO(
@@ -10,5 +11,6 @@ public record EquipmentResponseDTO(
         String description,
         UUID laboratoryId,
         String laboratoryName,
-        EquipmentStatus status
+        EquipmentStatus status,
+        String responsible
 ) {}

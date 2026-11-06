@@ -25,6 +25,8 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
 
     Optional<Reserve> findByCodigoQr(String codigoQr);
 
+    List<Reserve> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
     @Query("SELECT COUNT(r) > 0 FROM Reserve r " +
             "WHERE r.laboratory.id = :labId " +
             "AND r.status NOT IN :statusIgnorados " +
@@ -33,6 +35,27 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
                                      @Param("inicio") LocalDateTime inicio,
                                      @Param("fim") LocalDateTime fim,
                                      @Param("statusIgnorados") Collection<ReserveStatus> statusIgnorados);
+
+    /** Reservas que começam em [de, ate), exceto as dos status informados. */
+    @Query("SELECT COUNT(r) FROM Reserve r " +
+            "WHERE r.dataHoraInicio >= :de AND r.dataHoraInicio < :ate AND r.status NOT IN :statusIgnorados")
+    long countComInicioEntre(@Param("de") LocalDateTime de,
+                             @Param("ate") LocalDateTime ate,
+                             @Param("statusIgnorados") Collection<ReserveStatus> statusIgnorados);
+
+    /** Laboratórios com reserva no status informado cobrindo o instante {@code agora}. */
+    @Query("SELECT DISTINCT r.laboratory.id FROM Reserve r " +
+            "WHERE r.status = :status AND r.dataHoraInicio <= :agora AND r.dataHoraFim > :agora")
+    Set<UUID> findLaboratoriosEmUso(@Param("status") ReserveStatus status, @Param("agora") LocalDateTime agora);
+
+    /** Reservas que ainda bloqueiam o laboratório em [de, ate), em ordem de início. */
+    @Query("SELECT r FROM Reserve r " +
+            "WHERE r.laboratory.id = :labId AND r.status NOT IN :statusIgnorados " +
+            "AND r.dataHoraFim > :de AND r.dataHoraInicio < :ate ORDER BY r.dataHoraInicio")
+    List<Reserve> findOcupacao(@Param("labId") UUID labId,
+                               @Param("de") LocalDateTime de,
+                               @Param("ate") LocalDateTime ate,
+                               @Param("statusIgnorados") Collection<ReserveStatus> statusIgnorados);
 
     /** RF21/RN15: reservas que devem receber o e-mail de confirmação agora (início na janela informada). */
     @Query("SELECT r FROM Reserve r JOIN FETCH r.user JOIN FETCH r.laboratory " +

@@ -33,7 +33,7 @@ public class ReserveController {
     @Operation(summary = "Cria nova reserva com status PENDENTE (ALUNO, PROFESSOR)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Reserva criada (sem token nem código do QR no corpo)"),
-            @ApiResponse(responseCode = "400", description = "Fim antes do início; ERR_LAB_001 - laboratório inativo"),
+            @ApiResponse(responseCode = "400", description = "Fim antes do início; ERR_LAB_001 - laboratório inativo; ERR_LAB_002 - laboratório em manutenção"),
             @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado"),
             @ApiResponse(responseCode = "403", description = "ERR_FORBIDDEN - papel sem permissão"),
             @ApiResponse(responseCode = "404", description = "Laboratório não encontrado"),
@@ -54,6 +54,17 @@ public class ReserveController {
     })
     public ResponseEntity<List<ReserveResponseDTO>> listAll() {
         return ResponseEntity.ok(reserveService.findAll());
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lista as reservas do usuário logado, da mais recente para a mais antiga")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de reservas"),
+            @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado")
+    })
+    public ResponseEntity<List<ReserveResponseDTO>> listMine() {
+        return ResponseEntity.ok(reserveService.findMine());
     }
 
     @GetMapping("/{id}")

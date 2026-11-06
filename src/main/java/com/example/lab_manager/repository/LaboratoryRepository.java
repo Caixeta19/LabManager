@@ -15,6 +15,7 @@ import java.util.UUID;
 @Repository
 public interface LaboratoryRepository extends JpaRepository<Laboratory, UUID> {
     List<Laboratory> findByActiveTrue();
+    long countByActiveTrueAndMaintenanceFalse();
 
     /**
      * Trava a linha do laboratório (SELECT ... FOR UPDATE) até o fim da transação.

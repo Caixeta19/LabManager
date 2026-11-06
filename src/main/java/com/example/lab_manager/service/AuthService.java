@@ -55,6 +55,7 @@ public class AuthService {
 
         user.setFailedAttempts(0);
         user.setLockedUntil(null);
+        user.setLastLoginAt(agora);
         userRepository.save(user);
 
         return new AuthResponseDTO(

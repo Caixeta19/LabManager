@@ -50,6 +50,9 @@ jwt:
 app:
   # Usada para montar o link de confirmação enviado no e-mail
   base-url: ${APP_BASE_URL}
+  cors:
+    # Origens do front, separadas por vírgula
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   mail:
     from: ${MAIL_FROM:no-reply@labmanager.local}
   security:

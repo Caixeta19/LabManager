@@ -132,6 +132,32 @@ class ReserveServiceTest {
         }
 
         @Test
+        void laboratorioEmManutencaoLancaErrLab002() {
+            lab.setMaintenance(true);
+            when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
+
+            assertThatThrownBy(() -> service.create(request(inicio, fim)))
+                    .isInstanceOf(RegraDeNegocioException.class)
+                    .hasMessage("Laboratório em manutenção.")
+                    .extracting("codigoInterno", "httpStatus")
+                    .containsExactly("ERR_LAB_002", HttpStatus.BAD_REQUEST);
+            verify(reserveRepository, never()).save(any());
+        }
+
+        @Test
+        void gravaOMotivoEODevolveNoDto() {
+            when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
+            when(reserveRepository.existsConflictingReserve(eq(lab.getId()), eq(inicio), eq(fim), anyCollection())).thenReturn(false);
+            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            ReserveResponseDTO dto = service.create(new ReserveRequestDTO(lab.getId(), inicio, fim, "  Aula prática de redes  "));
+
+            assertThat(dto.reason()).isEqualTo("Aula prática de redes");
+            assertThat(dto.userType()).isEqualTo(UserType.ALUNO);
+        }
+
+        @Test
         void usaLockPessimistaNoLaboratorio() {
             when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.empty());
 

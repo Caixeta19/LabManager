@@ -11,14 +11,15 @@ import java.util.stream.Stream;
 import static com.example.lab_manager.enums.ReserveStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Máquina de estados (RN13 + decisão 1): cobre as 16 combinações origem × destino. */
+/** Máquina de estados (RN13 + decisão 1): cobre todas as combinações origem × destino. */
 class ReserveStatusTest {
 
     private static final Set<String> PERMITIDAS = Set.of(
             "PENDENTE->CONFIRMADA",
             "PENDENTE->CANCELADA",
             "PENDENTE->EXPIRADA",
-            "CONFIRMADA->CANCELADA"
+            "CONFIRMADA->CANCELADA",
+            "CONFIRMADA->NAO_COMPARECEU"
     );
 
     static Stream<Arguments> todasAsCombinacoes() {
@@ -38,6 +39,7 @@ class ReserveStatusTest {
         for (ReserveStatus destino : values()) {
             assertThat(CANCELADA.podeTransicionarPara(destino)).isFalse();
             assertThat(EXPIRADA.podeTransicionarPara(destino)).isFalse();
+            assertThat(NAO_COMPARECEU.podeTransicionarPara(destino)).isFalse();
         }
     }
 

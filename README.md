@@ -109,12 +109,17 @@ estável antes de qualquer uma dessas linhas ser tocada.
 - Transições de status permitidas:
 
 ```
-PENDENTE → CONFIRMADA   (via link do e-mail)
-PENDENTE → CANCELADA    (cancelamento sem confirmação)
-CONFIRMADA → CANCELADA  (cancelamento manual após confirmação)
+PENDENTE → CONFIRMADA        (via link do e-mail)
+PENDENTE → CANCELADA         (cancelamento sem confirmação)
+PENDENTE → EXPIRADA          (job: o início passou sem confirmação)
+CONFIRMADA → CANCELADA       (cancelamento manual após confirmação)
+CONFIRMADA → NAO_COMPARECEU  (job: a reserva terminou sem check-in)
 ```
 
-- Reservas canceladas e expiradas são mantidas no banco para histórico.
+- `CANCELADA`, `EXPIRADA` e `NAO_COMPARECEU` são estados finais.
+- `NaoCompareceuScheduler` roda a cada minuto (`app.jobs.nao-compareceu.fixed-delay-ms`, padrão 60000) e marca como
+  `NAO_COMPARECEU` toda reserva `CONFIRMADA` cujo `dataHoraFim` já passou e que não tem check-in (índice parcial da V6).
+- Reservas canceladas, expiradas e de não comparecimento são mantidas no banco para histórico.
 
 ### Confirmação por e-mail
 
@@ -312,7 +317,7 @@ sistema-laboratorios/
 │       │   │   └── response/                  # *ResponseDTO — saída da API
 │       │   ├── enums/
 │       │   │   ├── UserType.java              # ALUNO | PROFESSOR | ADMIN
-│       │   │   ├── ReserveStatus.java         # PENDENTE | CONFIRMADA | CANCELADA | EXPIRADA
+│       │   │   ├── ReserveStatus.java         # PENDENTE | CONFIRMADA | CANCELADA | EXPIRADA | NAO_COMPARECEU
 │       │   │   ├── LoanStatus.java            # ATIVO | ATRASADO | DEVOLVIDO
 │       │   │   └── EquipmentStatus.java       # DISPONIVEL | EM_USO | MANUTENCAO
 │       │   ├── exception/

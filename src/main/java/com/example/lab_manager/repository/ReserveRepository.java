@@ -78,4 +78,10 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
 
     /** Decisão 1: reservas ainda PENDENTE cujo início já passou. */
     List<Reserve> findByStatusAndDataHoraInicioBefore(ReserveStatus status, LocalDateTime agora);
+
+    /** "Não compareceu": reservas CONFIRMADA que já terminaram e não têm check-in. */
+    @Query("SELECT r FROM Reserve r WHERE r.status = com.example.lab_manager.enums.ReserveStatus.CONFIRMADA " +
+            "AND r.dataHoraFim < :agora " +
+            "AND NOT EXISTS (SELECT c.id FROM CheckIn c WHERE c.reserve = r)")
+    List<Reserve> findConfirmadasEncerradasSemCheckIn(@Param("agora") LocalDateTime agora);
 }

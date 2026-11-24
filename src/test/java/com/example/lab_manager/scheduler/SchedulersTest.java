@@ -122,4 +122,44 @@ class SchedulersTest {
             verify(reserveRepository, never()).saveAll(any());
         }
     }
+
+    @Nested
+    class NaoCompareceu {
+
+        @Test
+        void buscaConfirmadasEncerradasSemCheckInComOAgoraDoClock() {
+            var job = new NaoCompareceuScheduler(reserveRepository, TestData.CLOCK);
+            when(reserveRepository.findConfirmadasEncerradasSemCheckIn(AGORA)).thenReturn(List.of());
+
+            job.marcarNaoComparecimentos();
+
+            verify(reserveRepository).findConfirmadasEncerradasSemCheckIn(AGORA);
+            verify(reserveRepository, never()).saveAll(any());
+        }
+
+        @Test
+        void confirmadaSemCheckInViraNaoCompareceu() {
+            var job = new NaoCompareceuScheduler(reserveRepository, TestData.CLOCK);
+            Reserve r = TestData.reserve(user, lab, ReserveStatus.CONFIRMADA, AGORA.minusHours(2), AGORA.minusMinutes(1));
+            when(reserveRepository.findConfirmadasEncerradasSemCheckIn(AGORA)).thenReturn(List.of(r));
+
+            job.marcarNaoComparecimentos();
+
+            assertThat(r.getStatus()).isEqualTo(ReserveStatus.NAO_COMPARECEU);
+            verify(reserveRepository).saveAll(List.of(r));
+        }
+
+        @Test
+        void soMudaQuemPodeTransicionar() {
+            // defesa: se a consulta trouxer algo que não é CONFIRMADA, o status não muda
+            var job = new NaoCompareceuScheduler(reserveRepository, TestData.CLOCK);
+            Reserve cancelada = TestData.reserve(user, lab, ReserveStatus.CANCELADA, AGORA.minusHours(2), AGORA.minusHours(1));
+            when(reserveRepository.findConfirmadasEncerradasSemCheckIn(AGORA)).thenReturn(List.of(cancelada));
+
+            job.marcarNaoComparecimentos();
+
+            assertThat(cancelada.getStatus()).isEqualTo(ReserveStatus.CANCELADA);
+            verify(reserveRepository, never()).saveAll(any());
+        }
+    }
 }

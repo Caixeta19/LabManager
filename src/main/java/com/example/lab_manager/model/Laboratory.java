@@ -4,6 +4,7 @@ import com.example.lab_manager.enums.LaboratoryStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +44,13 @@ public class Laboratory {
     @Column(name = "opening_hours", length = 120)
     private String openingHours;
 
+    /** Janela diária para ALUNO/PROFESSOR reservarem. As duas nulas = sem restrição. ADMIN ignora. */
+    @Column(name = "booking_open_time")
+    private LocalTime bookingOpenTime;
+
+    @Column(name = "booking_close_time")
+    private LocalTime bookingCloseTime;
+
     @Convert(converter = StringListConverter.class)
     @Column(columnDefinition = "TEXT")
     private List<String> resources;
@@ -52,6 +60,10 @@ public class Laboratory {
 
     @OneToMany(mappedBy = "laboratory")
     private List<Reserve> reserves;
+
+    public boolean hasBookingWindow() {
+        return bookingOpenTime != null && bookingCloseTime != null;
+    }
 
     public LaboratoryStatus status() {
         if (!Boolean.TRUE.equals(active)) {

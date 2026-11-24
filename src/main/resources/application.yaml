@@ -39,9 +39,12 @@ spring:
           auth: true
           starttls:
             enable: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+            # Gmail (porta 587) exige STARTTLS: use MAIL_STARTTLS_REQUIRED=true.
+            # Mailpit/Mailtrap não precisam (false).
+            required: ${MAIL_STARTTLS_REQUIRED:false}
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 jwt:
   secret: ${JWT_SECRET}                        # obrigatório, mínimo de 32 caracteres

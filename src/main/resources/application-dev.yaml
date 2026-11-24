@@ -13,7 +13,7 @@ spring:
         format_sql: true
 
   mail:
-    # Mailtrap (README, etapa 5). Nunca use SMTP real em desenvolvimento.
+    # Padrão: Mailtrap (README, etapa 5). Para testar com Gmail, preencha MAIL_* no .env (.env.example, OPÇÃO B).
     host: ${MAIL_HOST:sandbox.smtp.mailtrap.io}
     port: ${MAIL_PORT:2525}
     username: ${MAIL_USERNAME:}

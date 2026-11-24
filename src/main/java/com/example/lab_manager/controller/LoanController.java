@@ -30,8 +30,8 @@ public class LoanController {
     private final LoanService loanService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ALUNO', 'PROFESSOR')")
-    @Operation(summary = "Solicita empréstimo de equipamento disponível (ALUNO, PROFESSOR)")
+    @PreAuthorize("hasAnyRole('ALUNO', 'PROFESSOR', 'ADMIN')")
+    @Operation(summary = "Solicita empréstimo de equipamento disponível (ALUNO, PROFESSOR, ADMIN)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Empréstimo criado; equipamento passa para EM_USO"),
             @ApiResponse(responseCode = "404", description = "Equipamento não encontrado"),

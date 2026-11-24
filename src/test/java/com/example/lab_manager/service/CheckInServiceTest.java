@@ -116,8 +116,25 @@ class CheckInServiceTest {
     }
 
     @Test
-    void adminNaoFazCheckInDeOutro() {
+    void adminFazCheckInDeReservaDeOutro() {
         when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
+        Reserve r = reservaNaJanela(ReserveStatus.CONFIRMADA);
+        when(checkInRepository.saveAndFlush(any(CheckIn.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.performCheckIn(QR).reserveId()).isEqualTo(r.getId());
+    }
+
+    @Test
+    void adminForaDaJanela404() {
+        when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
+        reserva(ReserveStatus.CONFIRMADA, AGORA.plusMinutes(1), AGORA.plusHours(1));
+
+        assertErro(HttpStatus.NOT_FOUND, "ERR_CHECKIN_002");
+    }
+
+    @Test
+    void professorNaoFazCheckInDeOutro() {
+        when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.PROFESSOR));
         reservaNaJanela(ReserveStatus.CONFIRMADA);
 
         assertErro(HttpStatus.NOT_FOUND, "ERR_CHECKIN_002");

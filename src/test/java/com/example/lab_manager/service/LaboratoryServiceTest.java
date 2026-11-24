@@ -3,6 +3,7 @@ package com.example.lab_manager.service;
 import com.example.lab_manager.dto.request.LaboratoryRequestDTO;
 import com.example.lab_manager.dto.response.LaboratoryResponseDTO;
 import com.example.lab_manager.enums.LaboratoryStatus;
+import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.model.Laboratory;
 import com.example.lab_manager.repository.LaboratoryRepository;
 import com.example.lab_manager.support.TestData;
@@ -13,11 +14,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
@@ -37,7 +40,45 @@ class LaboratoryServiceTest {
     }
 
     private LaboratoryRequestDTO request(LaboratoryStatus status, List<String> recursos) {
-        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, "Seg–Sex: 08h–20h", recursos, status);
+        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, "Seg–Sex: 08h–20h", recursos, status, null, null);
+    }
+
+    private LaboratoryRequestDTO requestComJanela(LocalTime abertura, LocalTime fechamento) {
+        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, null, null, null, abertura, fechamento);
+    }
+
+    @Test
+    void salvaJanelaDeReserva() {
+        LaboratoryResponseDTO dto = service.update(lab.getId(), requestComJanela(LocalTime.of(8, 0), LocalTime.of(18, 0)));
+
+        assertThat(dto.bookingOpenTime()).isEqualTo(LocalTime.of(8, 0));
+        assertThat(dto.bookingCloseTime()).isEqualTo(LocalTime.of(18, 0));
+        assertThat(lab.hasBookingWindow()).isTrue();
+    }
+
+    @Test
+    void semJanelaLimpaARestricao() {
+        lab.setBookingOpenTime(LocalTime.of(8, 0));
+        lab.setBookingCloseTime(LocalTime.of(18, 0));
+
+        LaboratoryResponseDTO dto = service.update(lab.getId(), requestComJanela(null, null));
+
+        assertThat(dto.bookingOpenTime()).isNull();
+        assertThat(lab.hasBookingWindow()).isFalse();
+    }
+
+    @Test
+    void janelaComSoUmHorarioLancaErrLab003() {
+        assertThatThrownBy(() -> service.update(lab.getId(), requestComJanela(LocalTime.of(8, 0), null)))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .extracting("codigoInterno").isEqualTo("ERR_LAB_003");
+    }
+
+    @Test
+    void aberturaDepoisDoFechamentoLancaErrLab003() {
+        assertThatThrownBy(() -> service.update(lab.getId(), requestComJanela(LocalTime.of(18, 0), LocalTime.of(8, 0))))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .extracting("codigoInterno").isEqualTo("ERR_LAB_003");
     }
 
     @Test

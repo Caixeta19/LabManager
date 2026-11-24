@@ -2,6 +2,7 @@ package com.example.lab_manager.service;
 
 import com.example.lab_manager.dto.response.CheckInResponseDTO;
 import com.example.lab_manager.enums.ReserveStatus;
+import com.example.lab_manager.enums.UserType;
 import com.example.lab_manager.exceptions.RecursoNaoEncontradoException;
 import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.exceptions.ReservaNaoConfirmadaException;
@@ -35,7 +36,7 @@ public class CheckInService {
     /**
      * Ordem das verificações (decisão 9):
      * <ol>
-     *   <li>QR inexistente, reserva de outro usuário ou fora de [início, fim] → 404 ERR_CHECKIN_002 (mensagem genérica, RN19)</li>
+     *   <li>QR inexistente, reserva de outro usuário (exceto para ADMIN) ou fora de [início, fim] → 404 ERR_CHECKIN_002 (mensagem genérica, RN19)</li>
      *   <li>status diferente de CONFIRMADA → 422 ERR_CHECKIN_001 (RN18)</li>
      *   <li>check-in já existente → 409 ERR_CHECKIN_003 (decisão 8 / RN20)</li>
      * </ol>
@@ -46,7 +47,7 @@ public class CheckInService {
         User usuario = currentUserService.getUsuarioAutenticado();
 
         Reserve reserve = reserveRepository.findByCodigoQr(codigoQr)
-                .filter(r -> r.getUser().getId().equals(usuario.getId()))      // decisão 5: só o dono
+                .filter(r -> podeFazerCheckIn(r, usuario))                    // decisão 5: dono ou ADMIN
                 .filter(r -> dentroDaJanela(r, agora))
                 .orElseThrow(() -> new RecursoNaoEncontradoException(MSG_QR_INVALIDO, "ERR_CHECKIN_002"));
 
@@ -76,6 +77,10 @@ public class CheckInService {
                 saved.getHorarioChegada(),
                 "Check-in realizado com sucesso!"
         );
+    }
+
+    private static boolean podeFazerCheckIn(Reserve r, User usuario) {
+        return usuario.getType() == UserType.ADMIN || r.getUser().getId().equals(usuario.getId());
     }
 
     private static boolean dentroDaJanela(Reserve r, LocalDateTime agora) {

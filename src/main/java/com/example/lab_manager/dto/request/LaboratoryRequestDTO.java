@@ -1,11 +1,13 @@
 package com.example.lab_manager.dto.request;
 
 import com.example.lab_manager.enums.LaboratoryStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalTime;
 import java.util.List;
 
 public record LaboratoryRequestDTO(
@@ -27,5 +29,12 @@ public record LaboratoryRequestDTO(
         List<String> resources,
 
         /** Opcional. Sem valor, o cadastro nasce ATIVO e o update mantém o status atual. */
-        LaboratoryStatus status
+        LaboratoryStatus status,
+
+        /** Opcional ("HH:mm"). Informe os dois ou nenhum; abertura antes do fechamento. */
+        @JsonFormat(pattern = "HH:mm")
+        LocalTime bookingOpenTime,
+
+        @JsonFormat(pattern = "HH:mm")
+        LocalTime bookingCloseTime
 ) {}

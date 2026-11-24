@@ -85,6 +85,8 @@ estável antes de qualquer uma dessas linhas ser tocada.
 - A desativação é lógica — o registro permanece no banco para integridade referencial.
 - Janela de reserva opcional (`bookingOpenTime` / `bookingCloseTime`, formato `HH:mm`): informe as duas ou nenhuma,
   com a abertura antes do fechamento (senão `ERR_LAB_003`). Sem janela, o laboratório aceita reservas a qualquer hora.
+- Dias de funcionamento opcionais (`bookingDays`, ex.: `["MONDAY", …, "FRIDAY"]`, migration V7). Vazio = todos os dias.
+- `openingHours` é só uma observação livre de horário (ex.: "Fechado nos feriados"); não entra em nenhuma regra.
 
 ### Equipamento (Equipment)
 
@@ -99,6 +101,8 @@ estável antes de qualquer uma dessas linhas ser tocada.
 - O horário de fim deve ser estritamente após o horário de início.
 - Se o laboratório tiver janela de reserva, ALUNO e PROFESSOR só reservam com início e fim no mesmo dia
   e dentro de `[abertura, fechamento]` (limites inclusivos). Fora disso → `ERR_RESERVA_004` (400). ADMIN ignora a janela.
+- Se o laboratório tiver dias de funcionamento, ALUNO e PROFESSOR só reservam nesses dias
+  (todos os dias ocupados pela reserva) → senão `ERR_RESERVA_005` (400). ADMIN ignora.
 - Reserva criada por ADMIN já nasce `CONFIRMADA` (com `dataConfirmacao`) e não recebe e-mail de confirmação.
 - Uma reserva não pode ter conflito de horário com outra ativa no mesmo laboratório.
   Reservas com status `CANCELADA` ou `EXPIRADA` são ignoradas na verificação de conflito.
@@ -336,7 +340,7 @@ LabManager/
 │       └── LoanAtrasadoScheduler.java       # marca empréstimos atrasados
 ├── src/main/resources/
 │   ├── application.yaml, application-dev.yaml
-│   ├── db/migration/    # Flyway V1–V6
+│   ├── db/migration/    # Flyway V1–V7
 │   └── templates/       # email-confirmacao.html, email-redefinir-senha.html (Thymeleaf)
 ├── src/test/java/com/example/lab_manager/
 │   ├── service/, scheduler/, enums/, security/, dto/   # testes unitários (Mockito, Clock fixo)
@@ -490,7 +494,7 @@ CREATE TABLE checkins (
 | 200 | Consulta bem-sucedida |
 | 201 | Recurso criado com sucesso |
 | 204 | Operação sem corpo de resposta (ex: desativar usuário) |
-| 400 | Dados inválidos ou violação de regra de negócio (ex: laboratório em manutenção `ERR_LAB_002`, janela de reserva inválida `ERR_LAB_003`, reserva fora da janela do laboratório `ERR_RESERVA_004`, link de senha inválido `ERR_AUTH_002`) |
+| 400 | Dados inválidos ou violação de regra de negócio (ex: laboratório em manutenção `ERR_LAB_002`, janela de reserva inválida `ERR_LAB_003`, reserva fora da janela do laboratório `ERR_RESERVA_004`, dia sem funcionamento `ERR_RESERVA_005`, link de senha inválido `ERR_AUTH_002`) |
 | 401 | Não autenticado (token ausente ou inválido) |
 | 403 | Autenticado mas sem permissão para o recurso |
 | 404 | Recurso não encontrado ou QR Code fora da janela de horário |

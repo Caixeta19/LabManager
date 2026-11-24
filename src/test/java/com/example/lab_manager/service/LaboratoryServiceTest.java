@@ -14,7 +14,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.EnumSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -40,11 +42,11 @@ class LaboratoryServiceTest {
     }
 
     private LaboratoryRequestDTO request(LaboratoryStatus status, List<String> recursos) {
-        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, "Seg–Sex: 08h–20h", recursos, status, null, null);
+        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, "Seg–Sex: 08h–20h", recursos, status, null, null, null);
     }
 
     private LaboratoryRequestDTO requestComJanela(LocalTime abertura, LocalTime fechamento) {
-        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, null, null, null, abertura, fechamento);
+        return new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, null, null, null, abertura, fechamento, null);
     }
 
     @Test
@@ -65,6 +67,28 @@ class LaboratoryServiceTest {
 
         assertThat(dto.bookingOpenTime()).isNull();
         assertThat(lab.hasBookingWindow()).isFalse();
+    }
+
+    @Test
+    void salvaDiasDeFuncionamentoEmOrdem() {
+        var dto = new LaboratoryRequestDTO("Lab", "Bloco A", 20, null, null, null, null, null, null,
+                List.of(DayOfWeek.FRIDAY, DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.MONDAY));
+
+        LaboratoryResponseDTO resp = service.update(lab.getId(), dto);
+
+        assertThat(resp.bookingDays()).containsExactly(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY);
+        assertThat(lab.funcionaNo(DayOfWeek.WEDNESDAY)).isTrue();
+        assertThat(lab.funcionaNo(DayOfWeek.SATURDAY)).isFalse();
+    }
+
+    @Test
+    void semDiasFuncionaTodosOsDias() {
+        lab.setBookingDays(EnumSet.of(DayOfWeek.MONDAY));
+
+        LaboratoryResponseDTO resp = service.update(lab.getId(), requestComJanela(null, null));
+
+        assertThat(resp.bookingDays()).isEmpty();
+        assertThat(lab.funcionaNo(DayOfWeek.SUNDAY)).isTrue();
     }
 
     @Test

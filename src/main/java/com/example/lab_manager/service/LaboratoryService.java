@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -96,6 +98,12 @@ public class LaboratoryService {
         }
         lab.setBookingOpenTime(dto.bookingOpenTime());
         lab.setBookingCloseTime(dto.bookingCloseTime());
+
+        EnumSet<DayOfWeek> dias = EnumSet.noneOf(DayOfWeek.class);
+        if (dto.bookingDays() != null) {
+            dto.bookingDays().stream().filter(Objects::nonNull).forEach(dias::add);
+        }
+        lab.setBookingDays(dias);
     }
 
     /** Cada recurso ocupa uma linha da coluna: quebras de linha e itens vazios ficam de fora. */
@@ -122,7 +130,8 @@ public class LaboratoryService {
                 lab.getOpeningHours(),
                 lab.getResources() != null ? lab.getResources() : List.of(),
                 lab.getBookingOpenTime(),
-                lab.getBookingCloseTime()
+                lab.getBookingCloseTime(),
+                lab.getBookingDays() == null ? List.of() : lab.getBookingDays().stream().sorted().toList()
         );
     }
 }

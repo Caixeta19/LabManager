@@ -25,8 +25,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.EnumSet;
 import java.util.Optional;
 
 import static com.example.lab_manager.support.TestData.AGORA;
@@ -120,6 +122,44 @@ class ReserveServiceTest {
             ReserveResponseDTO dto = service.create(request(amanha.withHour(6), amanha.withHour(22)));
 
             assertThat(dto.status()).isEqualTo(ReserveStatus.CONFIRMADA);
+        }
+
+        @Test
+        void diaSemFuncionamentoLancaErrReserva005() {
+            // AGORA = segunda 02/11/2026; sábado = 07/11
+            lab.setBookingDays(EnumSet.range(DayOfWeek.MONDAY, DayOfWeek.FRIDAY));
+            LocalDateTime sabado = AGORA.toLocalDate().plusDays(5).atStartOfDay();
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
+
+            assertThatThrownBy(() -> service.create(request(sabado.withHour(9), sabado.withHour(10))))
+                    .isInstanceOf(RegraDeNegocioException.class)
+                    .hasMessage("Este laboratório não funciona sábado. Dias de funcionamento: "
+                            + "segunda-feira, terça-feira, quarta-feira, quinta-feira, sexta-feira.")
+                    .extracting("codigoInterno", "httpStatus")
+                    .containsExactly("ERR_RESERVA_005", HttpStatus.BAD_REQUEST);
+            verify(reserveRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void diaDeFuncionamentoDentroDaJanelaPassa() {
+            lab.setBookingDays(EnumSet.range(DayOfWeek.MONDAY, DayOfWeek.FRIDAY));
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            // amanhã = terça
+            assertThat(service.create(request(amanha.withHour(9), amanha.withHour(10))).status())
+                    .isEqualTo(ReserveStatus.PENDENTE);
+        }
+
+        @Test
+        void adminIgnoraOsDiasDeFuncionamento() {
+            lab.setBookingDays(EnumSet.range(DayOfWeek.MONDAY, DayOfWeek.FRIDAY));
+            LocalDateTime domingo = AGORA.toLocalDate().plusDays(6).atStartOfDay();
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            assertThat(service.create(request(domingo.withHour(9), domingo.withHour(10))).status())
+                    .isEqualTo(ReserveStatus.CONFIRMADA);
         }
 
         @Test

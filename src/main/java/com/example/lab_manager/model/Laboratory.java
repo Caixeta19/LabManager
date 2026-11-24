@@ -4,8 +4,11 @@ import com.example.lab_manager.enums.LaboratoryStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -51,6 +54,12 @@ public class Laboratory {
     @Column(name = "booking_close_time")
     private LocalTime bookingCloseTime;
 
+    /** Dias de funcionamento para ALUNO/PROFESSOR reservarem. Vazio = qualquer dia. ADMIN ignora. */
+    @Builder.Default
+    @Convert(converter = DayOfWeekSetConverter.class)
+    @Column(name = "booking_days", length = 20)
+    private Set<DayOfWeek> bookingDays = EnumSet.noneOf(DayOfWeek.class);
+
     /** Token do QR fixo de check-in (nunca sai em DTO). Gerado na criação; o ADMIN pode trocar. */
     @Builder.Default
     @Column(name = "checkin_token", nullable = false, unique = true, length = 64)
@@ -72,6 +81,11 @@ public class Laboratory {
         if (checkinToken == null) {
             checkinToken = CheckinTokens.novo();
         }
+    }
+
+    /** Sem dias definidos, funciona todos os dias. */
+    public boolean funcionaNo(DayOfWeek dia) {
+        return bookingDays == null || bookingDays.isEmpty() || bookingDays.contains(dia);
     }
 
     public boolean hasBookingWindow() {

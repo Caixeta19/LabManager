@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -36,5 +37,8 @@ public record LaboratoryRequestDTO(
         LocalTime bookingOpenTime,
 
         @JsonFormat(pattern = "HH:mm")
-        LocalTime bookingCloseTime
+        LocalTime bookingCloseTime,
+
+        /** Opcional. Dias de funcionamento ("MONDAY" … "SUNDAY"). Vazio ou ausente = qualquer dia. */
+        List<DayOfWeek> bookingDays
 ) {}

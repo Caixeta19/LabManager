@@ -242,17 +242,19 @@ histórico auditável.
 Cliente (front)                  API Spring Boot                      Banco
      |                                |                                  |
      |-- POST /reserves ------------->|                                  |
-     |   { userId, laboratoryId,      |-- valida fim > início            |
-     |     dataHoraInicio, Fim }      |-- valida conflito de horário --> |
+     |   { laboratoryId, reason,      |-- valida fim > início            |
+     |     dataHoraInicio, Fim }      |-- janela do lab (ALUNO/PROF.)    |
+     |   (usuário vem do JWT)         |-- valida conflito de horário --> |
      |                                |<- sem conflito ------------------|
      |                                |-- @Builder.Default gera          |
      |                                |   tokenConfirmacao e codigoQr    |
-     |                                |-- INSERT (status: PENDENTE) ---->|
+     |                                |-- INSERT (PENDENTE; ADMIN:       |
+     |                                |   CONFIRMADA, sem e-mail) ------>|
      |<-- 201 ReserveResponseDTO -----|                                  |
      |   (sem token, sem codigoQr)    |                                  |
      |                                |                                  |
      |   [ Job roda a cada minuto ]   |-- busca reservas não enviadas -->|
-     |                                |   início entre +55min e +65min   |
+     |                                |   início entre agora e +65min    |
      |                                |-- dispara e-mail com link        |
      |                                |-- UPDATE emailEnviado = true --->|
      |                                |                                  |
@@ -264,6 +266,23 @@ Cliente (front)                  API Spring Boot                      Banco
 ```
 
 ### Fluxo de check-in via QR Code
+
+QR fixo do laboratório (principal): o ADMIN imprime o QR (`GET /laboratories/{id}/checkin-qrcode`) e cola na porta.
+
+```
+Usuário logado (front)            API Spring Boot                      Banco
+     |                                |                                  |
+     |-- POST /checkin/lab/{token} -->|                                  |
+     |                                |-- acha o laboratório pelo token ->|
+     |                                |-- reservas do usuário nesse lab  |
+     |                                |   com agora em [início-15, fim] ->|
+     |                                |   (nenhuma → 404; só PENDENTE    |
+     |                                |    → 422; já feito → 409)        |
+     |                                |-- INSERT CheckIn ---------------->|
+     |<-- 201 CheckInResponseDTO -----|                                  |
+```
+
+QR da reserva (fluxo antigo, mantido):
 
 ```
 Usuário (app/leitor)              API Spring Boot                      Banco
@@ -298,69 +317,33 @@ não toma decisão — só traduz HTTP para chamada de Service e vice-versa.
 ## 7. Estrutura de pastas
 
 ```
-sistema-laboratorios/
-├── src/
-│   └── main/
-│       ├── java/com/example/lab_manager/
-│       │   ├── config/
-│       │   │   ├── SecurityConfig.java        # Spring Security + JWT filter + BCrypt bean
-│       │   │   └── SchedulingConfig.java      # habilita @Scheduled
-│       │   ├── controller/
-│       │   │   ├── UserController.java
-│       │   │   ├── LaboratoryController.java
-│       │   │   ├── EquipmentController.java
-│       │   │   ├── ReserveController.java     # inclui /confirmar/{token} e /qrcode
-│       │   │   ├── LoanController.java
-│       │   │   └── CheckInController.java     # endpoints /checkin/lab/{token} e /checkin/{codigoQr}
-│       │   ├── dto/
-│       │   │   ├── request/                   # *RequestDTO — entrada da API
-│       │   │   └── response/                  # *ResponseDTO — saída da API
-│       │   ├── enums/
-│       │   │   ├── UserType.java              # ALUNO | PROFESSOR | ADMIN
-│       │   │   ├── ReserveStatus.java         # PENDENTE | CONFIRMADA | CANCELADA | EXPIRADA | NAO_COMPARECEU
-│       │   │   ├── LoanStatus.java            # ATIVO | ATRASADO | DEVOLVIDO
-│       │   │   └── EquipmentStatus.java       # DISPONIVEL | EM_USO | MANUTENCAO
-│       │   ├── exception/
-│       │   │   ├── HorarioConflitanteException.java    # → 409
-│       │   │   ├── RecursoNaoEncontradoException.java  # → 404
-│       │   │   ├── ReservaNaoConfirmadaException.java  # → 422
-│       │   │   ├── RegraDeNegocioException.java        # → 400
-│       │   │   └── GlobalExceptionHandler.java         # @RestControllerAdvice
-│       │   ├── model/
-│       │   │   ├── User.java
-│       │   │   ├── Laboratory.java
-│       │   │   ├── Equipment.java
-│       │   │   ├── Reserve.java
-│       │   │   ├── Loan.java
-│       │   │   └── CheckIn.java
-│       │   ├── repository/
-│       │   │   └── *Repository.java (6 arquivos)
-│       │   ├── security/
-│       │   │   ├── JwtUtil.java
-│       │   │   ├── JwtFilter.java
-│       │   │   └── UserDetailsServiceImpl.java
-│       │   ├── service/
-│       │   │   ├── UserService.java
-│       │   │   ├── LaboratoryService.java
-│       │   │   ├── EquipmentService.java
-│       │   │   ├── ReserveService.java
-│       │   │   ├── LoanService.java
-│       │   │   ├── CheckInService.java
-│       │   │   ├── MailService.java
-│       │   │   └── QrCodeService.java
-│       │   └── scheduler/
-│       │       ├── EmailConfirmacaoScheduler.java   # dispara e-mail 1h antes
-│       │       └── LoanAtrasadoScheduler.java       # marca empréstimos atrasados
-│       └── resources/
-│           ├── application.yml
-│           └── templates/
-│               └── email-confirmacao.html           # template Thymeleaf do e-mail
-├── src/test/
-│   └── java/com/example/lab_manager/
-│       ├── service/                                 # testes unitários
-│       └── controller/                              # testes de integração
-├── Dockerfile
-├── docker-compose.yml
+LabManager/
+├── src/main/java/com/example/lab_manager/
+│   ├── config/          # ClockConfig, CorsConfig, LoginLockProperties, OpenApiConfig
+│   ├── controller/      # Auth, User, Laboratory, Equipment, Reserve, Loan, CheckIn, Public, Health
+│   ├── dto/             # request/ (*RequestDTO), response/ (*ResponseDTO), error/ (ErrorResponseDTO)
+│   ├── enums/           # UserType, ReserveStatus, LoanStatus, EquipmentStatus, LaboratoryStatus, PublicLaboratoryStatus
+│   ├── exceptions/      # LabManagerException e filhas + GlobalExceptionHandler (@RestControllerAdvice)
+│   ├── model/           # User, Laboratory, Equipment, Reserve, Loan, CheckIn, PasswordResetToken, CheckinTokens
+│   ├── repository/      # *Repository (7 arquivos)
+│   ├── security/        # SecurityConfig, JwtTokenProvider, JwtAuthenticationFilter, handlers 401/403
+│   ├── service/         # Auth, User, Laboratory, LaboratoryCheckinQr, Equipment, Reserve, Loan, CheckIn,
+│   │                    # PasswordReset, PublicSummary, Mail, QrCode, CurrentUser
+│   └── scheduler/
+│       ├── EmailConfirmacaoScheduler.java   # e-mail de confirmação até 1h antes do início
+│       ├── ReservaExpiradaScheduler.java    # PENDENTE com início passado → EXPIRADA
+│       ├── NaoCompareceuScheduler.java      # CONFIRMADA encerrada sem check-in → NAO_COMPARECEU
+│       └── LoanAtrasadoScheduler.java       # marca empréstimos atrasados
+├── src/main/resources/
+│   ├── application.yaml, application-dev.yaml
+│   ├── db/migration/    # Flyway V1–V6
+│   └── templates/       # email-confirmacao.html, email-redefinir-senha.html (Thymeleaf)
+├── src/test/java/com/example/lab_manager/
+│   ├── service/, scheduler/, enums/, security/, dto/   # testes unitários (Mockito, Clock fixo)
+│   └── FluxoIntegracaoFrontTests.java, LabManagerApplicationTests.java   # integração (Testcontainers, -Pintegration)
+├── dockerfile
+├── docker-compose.yaml  # postgres, app, front, mailpit, admin-seed, pgadmin (ver DOCKER.md)
+├── .env.example
 ├── pom.xml
 └── README.md
 ```
@@ -620,9 +603,10 @@ A armadilha desta etapa: `GET /reserves/confirmar/{token}` precisa ser pública 
 - `MailService.enviarConfirmacao(reserve)`: monta o link `BASE_URL/reserves/confirmar/{tokenConfirmacao}` e envia.
 - Template HTML em `resources/templates/email-confirmacao.html` via Thymeleaf.
 
-Use o [Mailtrap](https://mailtrap.io) para testar localmente. Nunca use SMTP real em desenvolvimento.
+Para testar localmente use o Mailpit do `docker compose` (padrão, caixa em http://localhost:8025) ou o Mailtrap.
+Para envio real, use o Gmail com Senha de app (OPÇÃO B do `.env.example`, seção "E-mail real com Gmail").
 
-**Critério de aceite:** e-mail chega no Mailtrap com o link correto contendo o token.
+**Critério de aceite:** e-mail chega na caixa de teste com o link correto contendo o token.
 
 ---
 

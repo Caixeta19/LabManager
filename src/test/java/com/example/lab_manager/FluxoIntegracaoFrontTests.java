@@ -105,6 +105,7 @@ class FluxoIntegracaoFrontTests {
                 .andExpect(jsonPath("$.status", is("PENDENTE")))
                 .andExpect(jsonPath("$.userType", is("ALUNO")))
                 .andExpect(jsonPath("$.reason", is("Aula prática de redes")))
+                .andExpect(jsonPath("$.createdAt", notNullValue())) // já preenchido na resposta do POST
                 .andReturn().getResponse().getContentAsString();
         assertThat(corpo).doesNotContainIgnoringCase("token").doesNotContainIgnoringCase("codigoQr");
 

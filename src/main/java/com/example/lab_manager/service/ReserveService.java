@@ -92,7 +92,8 @@ public class ReserveService {
             reserve.setEmailConfirmacaoEnviado(true);
         }
 
-        return toDTO(reserveRepository.save(reserve));
+        // saveAndFlush: o INSERT acontece agora, então o @CreationTimestamp (createdAt) já volta preenchido no DTO
+        return toDTO(reserveRepository.saveAndFlush(reserve));
     }
 
     @Transactional(readOnly = true)

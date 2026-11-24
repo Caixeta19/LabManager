@@ -82,14 +82,14 @@ class ReserveServiceTest {
                     .hasMessage("Este laboratório só aceita reservas entre 08:00 e 18:00, com início e fim no mesmo dia.")
                     .extracting("codigoInterno", "httpStatus")
                     .containsExactly("ERR_RESERVA_004", HttpStatus.BAD_REQUEST);
-            verify(reserveRepository, never()).save(any());
+            verify(reserveRepository, never()).saveAndFlush(any());
         }
 
         @ParameterizedTest
         @EnumSource(value = UserType.class, names = {"ALUNO", "PROFESSOR"})
         void dentroDaJanelaComLimitesInclusivos(UserType tipo) {
             when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(tipo));
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             ReserveResponseDTO dto = service.create(request(amanha.withHour(8), amanha.withHour(18)));
 
@@ -115,7 +115,7 @@ class ReserveServiceTest {
         @Test
         void adminIgnoraAJanela() {
             when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             ReserveResponseDTO dto = service.create(request(amanha.withHour(6), amanha.withHour(22)));
 
@@ -127,7 +127,7 @@ class ReserveServiceTest {
             lab.setBookingOpenTime(null);
             lab.setBookingCloseTime(null);
             when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             assertThat(service.create(request(amanha.withHour(6), amanha.withHour(23))).status())
                     .isEqualTo(ReserveStatus.PENDENTE);
@@ -142,12 +142,12 @@ class ReserveServiceTest {
             when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
             when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
             when(reserveRepository.existsConflictingReserve(eq(lab.getId()), eq(inicio), eq(fim), anyCollection())).thenReturn(false);
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             ReserveResponseDTO dto = service.create(request(inicio, fim));
 
             ArgumentCaptor<Reserve> captor = ArgumentCaptor.forClass(Reserve.class);
-            verify(reserveRepository).save(captor.capture());
+            verify(reserveRepository).saveAndFlush(captor.capture());
             Reserve salva = captor.getValue();
             assertThat(salva.getStatus()).isEqualTo(ReserveStatus.PENDENTE);
             assertThat(salva.getTokenConfirmacao()).isNotBlank();
@@ -169,7 +169,7 @@ class ReserveServiceTest {
                     .hasMessage("Já existe uma reserva para este laboratório no horário solicitado.")
                     .extracting("codigoInterno", "httpStatus")
                     .containsExactly("ERR_RESERVA_001", HttpStatus.CONFLICT);
-            verify(reserveRepository, never()).save(any());
+            verify(reserveRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -198,14 +198,14 @@ class ReserveServiceTest {
             User admin = TestData.user(UserType.ADMIN);
             when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
             when(currentUserService.getUsuarioAutenticado()).thenReturn(admin);
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             ReserveResponseDTO dto = service.create(request(inicio, fim));
 
             assertThat(dto.status()).isEqualTo(ReserveStatus.CONFIRMADA);
             assertThat(dto.dataConfirmacao()).isEqualTo(AGORA);
             ArgumentCaptor<Reserve> captor = ArgumentCaptor.forClass(Reserve.class);
-            verify(reserveRepository).save(captor.capture());
+            verify(reserveRepository).saveAndFlush(captor.capture());
             assertThat(captor.getValue().isEmailConfirmacaoEnviado()).isTrue(); // o scheduler não envia
         }
 
@@ -230,7 +230,7 @@ class ReserveServiceTest {
                     .hasMessage("Laboratório em manutenção.")
                     .extracting("codigoInterno", "httpStatus")
                     .containsExactly("ERR_LAB_002", HttpStatus.BAD_REQUEST);
-            verify(reserveRepository, never()).save(any());
+            verify(reserveRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -238,7 +238,7 @@ class ReserveServiceTest {
             when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
             when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
             when(reserveRepository.existsConflictingReserve(eq(lab.getId()), eq(inicio), eq(fim), anyCollection())).thenReturn(false);
-            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(reserveRepository.saveAndFlush(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
 
             ReserveResponseDTO dto = service.create(new ReserveRequestDTO(lab.getId(), inicio, fim, "  Aula prática de redes  "));
 

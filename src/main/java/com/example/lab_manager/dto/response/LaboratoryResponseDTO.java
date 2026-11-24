@@ -3,6 +3,7 @@ package com.example.lab_manager.dto.response;
 import com.example.lab_manager.enums.LaboratoryStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -20,5 +21,7 @@ public record LaboratoryResponseDTO(
         @JsonFormat(pattern = "HH:mm")
         LocalTime bookingOpenTime,
         @JsonFormat(pattern = "HH:mm")
-        LocalTime bookingCloseTime
+        LocalTime bookingCloseTime,
+        /** Dias de funcionamento em ordem (segunda primeiro). Vazio = qualquer dia. */
+        List<DayOfWeek> bookingDays
 ) {}

@@ -20,10 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,7 @@ public class ReserveService {
     static final String MSG_NAO_ENCONTRADA = "Reserva não encontrada.";
     static final int DIAS_DE_OCUPACAO = 14;
     private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
+    private static final Locale PT_BR = Locale.of("pt", "BR");
 
     private final ReserveRepository reserveRepository;
     private final LaboratoryRepository laboratoryRepository;
@@ -180,6 +184,7 @@ public class ReserveService {
 
     /** ERR_RESERVA_004: início e fim no mesmo dia e dentro de [abertura, fechamento] do laboratório. */
     private static void validarJanelaDeReserva(Laboratory lab, LocalDateTime inicio, LocalDateTime fim) {
+        validarDiasDeFuncionamento(lab, inicio, fim);
         if (!lab.hasBookingWindow()) {
             return;
         }
@@ -192,6 +197,21 @@ public class ReserveService {
                     "Este laboratório só aceita reservas entre " + HORA.format(abertura) + " e "
                             + HORA.format(fechamento) + ", com início e fim no mesmo dia.",
                     "ERR_RESERVA_004");
+        }
+    }
+
+    /** ERR_RESERVA_005: todos os dias ocupados pela reserva precisam ser dias de funcionamento do laboratório. */
+    private static void validarDiasDeFuncionamento(Laboratory lab, LocalDateTime inicio, LocalDateTime fim) {
+        for (LocalDate dia = inicio.toLocalDate(); !dia.isAfter(fim.toLocalDate()); dia = dia.plusDays(1)) {
+            if (!lab.funcionaNo(dia.getDayOfWeek())) {
+                String dias = lab.getBookingDays().stream().sorted()
+                        .map(d -> d.getDisplayName(TextStyle.FULL, PT_BR))
+                        .collect(Collectors.joining(", "));
+                throw new RegraDeNegocioException(
+                        "Este laboratório não funciona " + dia.getDayOfWeek().getDisplayName(TextStyle.FULL, PT_BR)
+                                + ". Dias de funcionamento: " + dias + ".",
+                        "ERR_RESERVA_005");
+            }
         }
     }
 

@@ -51,6 +51,11 @@ public class Laboratory {
     @Column(name = "booking_close_time")
     private LocalTime bookingCloseTime;
 
+    /** Token do QR fixo de check-in (nunca sai em DTO). Gerado na criação; o ADMIN pode trocar. */
+    @Builder.Default
+    @Column(name = "checkin_token", nullable = false, unique = true, length = 64)
+    private String checkinToken = CheckinTokens.novo();
+
     @Convert(converter = StringListConverter.class)
     @Column(columnDefinition = "TEXT")
     private List<String> resources;
@@ -60,6 +65,14 @@ public class Laboratory {
 
     @OneToMany(mappedBy = "laboratory")
     private List<Reserve> reserves;
+
+    /** Garante o token também quando o laboratório nasce pelo construtor vazio. */
+    @PrePersist
+    void gerarCheckinTokenSeFaltar() {
+        if (checkinToken == null) {
+            checkinToken = CheckinTokens.novo();
+        }
+    }
 
     public boolean hasBookingWindow() {
         return bookingOpenTime != null && bookingCloseTime != null;

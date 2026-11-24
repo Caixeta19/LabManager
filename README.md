@@ -136,6 +136,18 @@ CONFIRMADA → CANCELADA  (cancelamento manual após confirmação)
   Não confirmamos a existência da reserva para QR Codes fora do horário.
 - Cada reserva tem no máximo um check-in — campo `reserve_id` é `UNIQUE` no banco.
 
+**QR fixo do laboratório (forma principal, prova presença):**
+
+- Cada laboratório tem um `checkinToken` aleatório (43+ caracteres, migration V5), gerado na criação e nunca exposto em DTO.
+  O ADMIN imprime o QR (`GET /laboratories/{id}/checkin-qrcode`) e o cola na porta. O QR leva a URL
+  `APP_FRONT_URL/check-in?lab={token}`. `POST /laboratories/{id}/checkin-token/regenerar` troca o token e invalida o QR antigo.
+- `POST /checkin/lab/{token}`: o usuário logado lê o QR e o sistema procura a reserva **dele** nesse laboratório,
+  `PENDENTE` ou `CONFIRMADA`, com "agora" em `[início - 15 min, fim]` (limites inclusivos). Vale para qualquer papel, inclusive ADMIN.
+  - Token inexistente ou nenhuma reserva na janela → 404 `ERR_CHECKIN_002` (mensagem genérica).
+  - Só reserva `PENDENTE` na janela → 422 `ERR_CHECKIN_001`.
+  - Reserva `CONFIRMADA` já com check-in → 409 `ERR_CHECKIN_003`.
+- O fluxo antigo (`POST /checkin/{codigoQr}`, QR da reserva) continua funcionando como antes, sem a tolerância de 15 min.
+
 ### Empréstimo (Loan)
 
 - Um empréstimo só pode ser criado para um equipamento com status `DISPONIVEL`.
@@ -294,7 +306,7 @@ sistema-laboratorios/
 │       │   │   ├── EquipmentController.java
 │       │   │   ├── ReserveController.java     # inclui /confirmar/{token} e /qrcode
 │       │   │   ├── LoanController.java
-│       │   │   └── CheckInController.java     # endpoint /checkin/{codigoQr}
+│       │   │   └── CheckInController.java     # endpoints /checkin/lab/{token} e /checkin/{codigoQr}
 │       │   ├── dto/
 │       │   │   ├── request/                   # *RequestDTO — entrada da API
 │       │   │   └── response/                  # *ResponseDTO — saída da API
@@ -459,6 +471,8 @@ CREATE TABLE checkins (
 | GET | `/laboratories/todos` | ADMIN | Listar todos, inclusive inativos |
 | GET | `/laboratories/{id}` | Autenticado | Buscar laboratório |
 | GET | `/laboratories/{id}/ocupacao` | Autenticado | Horários ocupados nos próximos 14 dias, sem identificar quem reservou |
+| GET | `/laboratories/{id}/checkin-qrcode` | ADMIN | Imagem PNG do QR fixo de check-in do laboratório |
+| POST | `/laboratories/{id}/checkin-token/regenerar` | ADMIN | Gera novo token de check-in (o QR antigo deixa de valer) |
 | PUT | `/laboratories/{id}` | ADMIN | Atualizar laboratório, inclusive o status (ATIVO, INATIVO, MANUTENCAO) |
 | DELETE | `/laboratories/{id}` | ADMIN | Desativar laboratório |
 | POST | `/equipments` | ADMIN | Criar equipamento |
@@ -473,7 +487,8 @@ CREATE TABLE checkins (
 | DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva (rota antiga, *deprecated*) |
 | GET | `/reserves/confirmar/{token}` | **Público** | Confirmar reserva via e-mail |
 | GET | `/reserves/{id}/qrcode` | Dono ou ADMIN | Obter imagem do QR Code (PNG) |
-| POST | `/checkin/{codigoQr}` | Dono da reserva ou ADMIN | Realizar check-in |
+| POST | `/checkin/lab/{token}` | Autenticado | Check-in pelo QR fixo do laboratório (reserva do próprio usuário, de 15 min antes do início até o fim) |
+| POST | `/checkin/{codigoQr}` | Dono da reserva ou ADMIN | Check-in pelo QR da reserva (fluxo antigo) |
 | POST | `/loans` | ALUNO, PROFESSOR, ADMIN | Criar empréstimo |
 | GET | `/loans` | ADMIN | Listar empréstimos |
 | GET | `/loans/me` | Autenticado | Empréstimos do usuário logado, do mais recente para o mais antigo |

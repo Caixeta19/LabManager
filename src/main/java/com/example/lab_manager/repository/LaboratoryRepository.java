@@ -17,6 +17,8 @@ public interface LaboratoryRepository extends JpaRepository<Laboratory, UUID> {
     List<Laboratory> findByActiveTrue();
     long countByActiveTrueAndMaintenanceFalse();
 
+    Optional<Laboratory> findByCheckinToken(String checkinToken);
+
     /**
      * Trava a linha do laboratório (SELECT ... FOR UPDATE) até o fim da transação.
      * Serializa a criação de reservas no mesmo laboratório, evitando duas reservas no mesmo horário.

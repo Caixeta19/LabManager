@@ -25,6 +25,10 @@ public interface ReserveRepository extends JpaRepository<Reserve, UUID> {
 
     Optional<Reserve> findByCodigoQr(String codigoQr);
 
+    /** Check-in pelo QR do laboratório: reservas do usuário nesse laboratório que ainda não terminaram. */
+    List<Reserve> findByUserIdAndLaboratoryIdAndStatusInAndDataHoraFimGreaterThanEqualOrderByDataHoraInicio(
+            UUID userId, UUID laboratoryId, Collection<ReserveStatus> status, LocalDateTime agora);
+
     List<Reserve> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     @Query("SELECT COUNT(r) > 0 FROM Reserve r " +

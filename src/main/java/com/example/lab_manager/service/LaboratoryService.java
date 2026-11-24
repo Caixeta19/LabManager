@@ -4,6 +4,7 @@ import com.example.lab_manager.dto.request.LaboratoryRequestDTO;
 import com.example.lab_manager.dto.response.LaboratoryResponseDTO;
 import com.example.lab_manager.enums.LaboratoryStatus;
 import com.example.lab_manager.exceptions.RecursoNaoEncontradoException;
+import com.example.lab_manager.exceptions.RegraDeNegocioException;
 import com.example.lab_manager.model.Laboratory;
 import com.example.lab_manager.repository.LaboratoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class LaboratoryService {
         lab.setDescription(dto.description());
         lab.setOpeningHours(dto.openingHours());
         lab.setResources(normalizarRecursos(dto.resources()));
+        aplicarJanelaDeReserva(lab, dto);
         lab.applyStatus(dto.status() != null ? dto.status() : LaboratoryStatus.ATIVO);
 
         Laboratory saved = laboratoryRepository.save(lab);
@@ -64,6 +66,7 @@ public class LaboratoryService {
         lab.setDescription(dto.description());
         lab.setOpeningHours(dto.openingHours());
         lab.setResources(normalizarRecursos(dto.resources()));
+        aplicarJanelaDeReserva(lab, dto);
         if (dto.status() != null) {
             lab.applyStatus(dto.status());
         }
@@ -77,6 +80,22 @@ public class LaboratoryService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Laboratório não encontrado."));
         lab.setActive(false);
         laboratoryRepository.save(lab);
+    }
+
+    /** Janela de reserva: as duas horas ou nenhuma, e a abertura antes do fechamento. */
+    private static void aplicarJanelaDeReserva(Laboratory lab, LaboratoryRequestDTO dto) {
+        boolean temAbertura = dto.bookingOpenTime() != null;
+        boolean temFechamento = dto.bookingCloseTime() != null;
+        if (temAbertura != temFechamento) {
+            throw new RegraDeNegocioException(
+                    "Informe o horário de abertura e o de fechamento das reservas, ou nenhum dos dois.", "ERR_LAB_003");
+        }
+        if (temAbertura && !dto.bookingOpenTime().isBefore(dto.bookingCloseTime())) {
+            throw new RegraDeNegocioException(
+                    "O horário de abertura das reservas deve ser antes do horário de fechamento.", "ERR_LAB_003");
+        }
+        lab.setBookingOpenTime(dto.bookingOpenTime());
+        lab.setBookingCloseTime(dto.bookingCloseTime());
     }
 
     /** Cada recurso ocupa uma linha da coluna: quebras de linha e itens vazios ficam de fora. */
@@ -101,7 +120,9 @@ public class LaboratoryService {
                 lab.getActive(),
                 lab.status(),
                 lab.getOpeningHours(),
-                lab.getResources() != null ? lab.getResources() : List.of()
+                lab.getResources() != null ? lab.getResources() : List.of(),
+                lab.getBookingOpenTime(),
+                lab.getBookingCloseTime()
         );
     }
 }

@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Optional;
 
 import static com.example.lab_manager.support.TestData.AGORA;
@@ -59,6 +60,78 @@ class ReserveServiceTest {
 
     private ReserveRequestDTO request(LocalDateTime ini, LocalDateTime f) {
         return new ReserveRequestDTO(lab.getId(), ini, f);
+    }
+
+    @Nested
+    class JanelaDeReserva {
+
+        // Laboratório aceita reservas das 08:00 às 18:00; "amanhã" é 03/11/2026
+        LocalDateTime amanha = AGORA.plusDays(1).toLocalDate().atStartOfDay();
+
+        @BeforeEach
+        void janela() {
+            lab.setBookingOpenTime(LocalTime.of(8, 0));
+            lab.setBookingCloseTime(LocalTime.of(18, 0));
+            when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
+        }
+
+        private void assertForaDaJanela(User quem, LocalDateTime ini, LocalDateTime f) {
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(quem);
+            assertThatThrownBy(() -> service.create(request(ini, f)))
+                    .isInstanceOf(RegraDeNegocioException.class)
+                    .hasMessage("Este laboratório só aceita reservas entre 08:00 e 18:00, com início e fim no mesmo dia.")
+                    .extracting("codigoInterno", "httpStatus")
+                    .containsExactly("ERR_RESERVA_004", HttpStatus.BAD_REQUEST);
+            verify(reserveRepository, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = UserType.class, names = {"ALUNO", "PROFESSOR"})
+        void dentroDaJanelaComLimitesInclusivos(UserType tipo) {
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(tipo));
+            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            ReserveResponseDTO dto = service.create(request(amanha.withHour(8), amanha.withHour(18)));
+
+            assertThat(dto.status()).isEqualTo(ReserveStatus.PENDENTE);
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = UserType.class, names = {"ALUNO", "PROFESSOR"})
+        void inicioAntesDaAberturaLancaErrReserva004(UserType tipo) {
+            assertForaDaJanela(TestData.user(tipo), amanha.withHour(7).withMinute(59), amanha.withHour(9));
+        }
+
+        @Test
+        void fimDepoisDoFechamentoLancaErrReserva004() {
+            assertForaDaJanela(aluno, amanha.withHour(17), amanha.withHour(18).withMinute(1));
+        }
+
+        @Test
+        void reservaQueAtravessaODiaLancaErrReserva004() {
+            assertForaDaJanela(aluno, amanha.withHour(9), amanha.plusDays(1).withHour(10));
+        }
+
+        @Test
+        void adminIgnoraAJanela() {
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
+            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            ReserveResponseDTO dto = service.create(request(amanha.withHour(6), amanha.withHour(22)));
+
+            assertThat(dto.status()).isEqualTo(ReserveStatus.CONFIRMADA);
+        }
+
+        @Test
+        void laboratorioSemJanelaNaoRestringe() {
+            lab.setBookingOpenTime(null);
+            lab.setBookingCloseTime(null);
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(aluno);
+            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            assertThat(service.create(request(amanha.withHour(6), amanha.withHour(23))).status())
+                    .isEqualTo(ReserveStatus.PENDENTE);
+        }
     }
 
     @Nested
@@ -118,6 +191,22 @@ class ReserveServiceTest {
         void fimAntesDoInicioLancaRegraDeNegocio() {
             assertThatThrownBy(() -> service.create(request(fim, inicio)))
                     .isInstanceOf(RegraDeNegocioException.class);
+        }
+
+        @Test
+        void adminCriaReservaJaConfirmadaSemEmail() {
+            User admin = TestData.user(UserType.ADMIN);
+            when(laboratoryRepository.findByIdForUpdate(lab.getId())).thenReturn(Optional.of(lab));
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(admin);
+            when(reserveRepository.save(any(Reserve.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            ReserveResponseDTO dto = service.create(request(inicio, fim));
+
+            assertThat(dto.status()).isEqualTo(ReserveStatus.CONFIRMADA);
+            assertThat(dto.dataConfirmacao()).isEqualTo(AGORA);
+            ArgumentCaptor<Reserve> captor = ArgumentCaptor.forClass(Reserve.class);
+            verify(reserveRepository).save(captor.capture());
+            assertThat(captor.getValue().isEmailConfirmacaoEnviado()).isTrue(); // o scheduler não envia
         }
 
         @Test
@@ -292,8 +381,18 @@ class ReserveServiceTest {
             assertThat(service.generateQrCodeImage(r.getId())).containsExactly(1, 2);
         }
 
+        @Test
+        void adminObtemOQrCodeDeQualquerReserva() {
+            Reserve r = TestData.reserve(aluno, lab, ReserveStatus.CONFIRMADA, inicio, fim);
+            when(reserveRepository.findById(r.getId())).thenReturn(Optional.of(r));
+            when(currentUserService.getUsuarioAutenticado()).thenReturn(TestData.user(UserType.ADMIN));
+            when(qrCodeService.gerarImagemPng(r.getCodigoQr())).thenReturn(new byte[]{3});
+
+            assertThat(service.generateQrCodeImage(r.getId())).containsExactly(3);
+        }
+
         @ParameterizedTest
-        @EnumSource(UserType.class)
+        @EnumSource(value = UserType.class, names = {"ALUNO", "PROFESSOR"})
         void quemNaoEDonoRecebe404NoQrCode(UserType tipo) {
             Reserve r = TestData.reserve(aluno, lab, ReserveStatus.CONFIRMADA, inicio, fim);
             when(reserveRepository.findById(r.getId())).thenReturn(Optional.of(r));

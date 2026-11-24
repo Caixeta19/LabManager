@@ -83,6 +83,8 @@ estável antes de qualquer uma dessas linhas ser tocada.
 
 - Laboratórios desativados (`active = false`) não aparecem nas listagens públicas.
 - A desativação é lógica — o registro permanece no banco para integridade referencial.
+- Janela de reserva opcional (`bookingOpenTime` / `bookingCloseTime`, formato `HH:mm`): informe as duas ou nenhuma,
+  com a abertura antes do fechamento (senão `ERR_LAB_003`). Sem janela, o laboratório aceita reservas a qualquer hora.
 
 ### Equipamento (Equipment)
 
@@ -95,6 +97,9 @@ estável antes de qualquer uma dessas linhas ser tocada.
 ### Reserva (Reserve)
 
 - O horário de fim deve ser estritamente após o horário de início.
+- Se o laboratório tiver janela de reserva, ALUNO e PROFESSOR só reservam com início e fim no mesmo dia
+  e dentro de `[abertura, fechamento]` (limites inclusivos). Fora disso → `ERR_RESERVA_004` (400). ADMIN ignora a janela.
+- Reserva criada por ADMIN já nasce `CONFIRMADA` (com `dataConfirmacao`) e não recebe e-mail de confirmação.
 - Uma reserva não pode ter conflito de horário com outra ativa no mesmo laboratório.
   Reservas com status `CANCELADA` ou `EXPIRADA` são ignoradas na verificação de conflito.
 - Na criação, dois campos são gerados automaticamente via `@Builder.Default` e de forma independente:
@@ -113,7 +118,8 @@ CONFIRMADA → CANCELADA  (cancelamento manual após confirmação)
 
 ### Confirmação por e-mail
 
-- O e-mail deve ser disparado **1 hora antes** do início da reserva.
+- O e-mail é disparado **até 1 hora antes** do início da reserva: o job pega as reservas `PENDENTE`
+  que começam entre agora e agora + 65 min. Reserva feita em cima da hora recebe o e-mail no próximo ciclo.
 - O disparo ocorre **apenas uma vez** por reserva, controlado pelo campo `emailConfirmacaoEnviado`.
   Um segundo ciclo do job não reenvia o e-mail.
 - O link contém o `tokenConfirmacao`. Quando acessado:
@@ -122,6 +128,7 @@ CONFIRMADA → CANCELADA  (cancelamento manual após confirmação)
 
 ### Check-in (CheckIn)
 
+- Quem faz o check-in: o dono da reserva ou um ADMIN (para qualquer reserva). Para os demais, reserva de outro usuário → 404.
 - O check-in só pode ser criado se a reserva estiver com status `CONFIRMADA`.
   Reserva `PENDENTE` → lança `ReservaNaoConfirmadaException` (422).
 - O check-in só pode ser criado dentro da janela `[dataHoraInicio, dataHoraFim]` da reserva.
@@ -458,16 +465,16 @@ CREATE TABLE checkins (
 | GET | `/equipments` | Autenticado | Listar equipamentos |
 | GET | `/equipments/disponiveis` | Autenticado | Listar disponíveis |
 | PUT | `/equipments/{id}` | ADMIN | Atualizar equipamento |
-| POST | `/reserves` | ALUNO, PROFESSOR | Criar reserva |
+| POST | `/reserves` | ALUNO, PROFESSOR, ADMIN | Criar reserva (ADMIN: já CONFIRMADA e sem janela de horário) |
 | GET | `/reserves` | ADMIN, PROFESSOR | Listar reservas |
 | GET | `/reserves/me` | Autenticado | Reservas do usuário logado, da mais recente para a mais antiga |
 | GET | `/reserves/{id}` | Dono, ADMIN, PROFESSOR | Buscar reserva |
 | PUT | `/reserves/{id}/cancelar` | Dono ou ADMIN | Cancelar reserva |
 | DELETE | `/reserves/{id}` | Dono ou ADMIN | Cancelar reserva (rota antiga, *deprecated*) |
 | GET | `/reserves/confirmar/{token}` | **Público** | Confirmar reserva via e-mail |
-| GET | `/reserves/{id}/qrcode` | Dono | Obter imagem do QR Code (PNG) |
-| POST | `/checkin/{codigoQr}` | Dono da reserva | Realizar check-in |
-| POST | `/loans` | ALUNO, PROFESSOR | Criar empréstimo |
+| GET | `/reserves/{id}/qrcode` | Dono ou ADMIN | Obter imagem do QR Code (PNG) |
+| POST | `/checkin/{codigoQr}` | Dono da reserva ou ADMIN | Realizar check-in |
+| POST | `/loans` | ALUNO, PROFESSOR, ADMIN | Criar empréstimo |
 | GET | `/loans` | ADMIN | Listar empréstimos |
 | GET | `/loans/me` | Autenticado | Empréstimos do usuário logado, do mais recente para o mais antigo |
 | PUT | `/loans/{id}/devolver` | ADMIN | Registrar devolução |
@@ -480,7 +487,7 @@ CREATE TABLE checkins (
 | 200 | Consulta bem-sucedida |
 | 201 | Recurso criado com sucesso |
 | 204 | Operação sem corpo de resposta (ex: desativar usuário) |
-| 400 | Dados inválidos ou violação de regra de negócio (ex: laboratório em manutenção `ERR_LAB_002`, link de senha inválido `ERR_AUTH_002`) |
+| 400 | Dados inválidos ou violação de regra de negócio (ex: laboratório em manutenção `ERR_LAB_002`, janela de reserva inválida `ERR_LAB_003`, reserva fora da janela do laboratório `ERR_RESERVA_004`, link de senha inválido `ERR_AUTH_002`) |
 | 401 | Não autenticado (token ausente ou inválido) |
 | 403 | Autenticado mas sem permissão para o recurso |
 | 404 | Recurso não encontrado ou QR Code fora da janela de horário |
@@ -601,10 +608,10 @@ Use o [Mailtrap](https://mailtrap.io) para testar localmente. Nunca use SMTP rea
 
 ### Etapa 6 — Job de Confirmação por E-mail (@Scheduled)
 
-**Objetivo:** o e-mail é disparado automaticamente 1 hora antes, sem intervenção manual.
+**Objetivo:** o e-mail é disparado automaticamente até 1 hora antes, sem intervenção manual.
 
 - `EmailConfirmacaoScheduler` com `@Scheduled(fixedDelay = 60000)`.
-- A cada ciclo: busca reservas com `emailConfirmacaoEnviado = false` e `dataHoraInicio` entre `agora + 55min` e `agora + 65min`. Chama `MailService`. Marca `emailConfirmacaoEnviado = true`.
+- A cada ciclo: busca reservas com `emailConfirmacaoEnviado = false` e `dataHoraInicio` entre `agora` e `agora + 65min`. Chama `MailService`. Marca `emailConfirmacaoEnviado = true`.
 
 **Critério de aceite:** e-mail enviado uma vez; segundo ciclo não reenvia; `emailConfirmacaoEnviado = true` no banco.
 
@@ -768,7 +775,8 @@ No perfil `dev`, se o SMTP falhar, o link de redefinição de senha é escrito n
 | `MAIL_PORT` | Não | `587` | `2525` | Porta SMTP |
 | `MAIL_USERNAME` | Sim | — | vazio | Usuário SMTP |
 | `MAIL_PASSWORD` | Sim | — | vazio | Senha SMTP |
-| `MAIL_FROM` | Não | `no-reply@labmanager.local` | idem | Remetente do e-mail de confirmação |
+| `MAIL_FROM` | Não | `no-reply@labmanager.local` | idem | Remetente dos e-mails (no Gmail, o próprio endereço) |
+| `MAIL_STARTTLS_REQUIRED` | Não | `false` | `false` | `true` para exigir STARTTLS (Gmail, porta 587) |
 | `APP_BASE_URL` | Sim | — | `http://localhost:8080` | URL base usada no link do e-mail |
 | `APP_FRONT_URL` | Sim | — | `http://localhost:5173` | URL do front, usada no link de redefinição de senha |
 | `CORS_ALLOWED_ORIGINS` | Não | `http://localhost:5173` | idem | Origens do front liberadas no CORS, separadas por vírgula |
@@ -776,6 +784,20 @@ No perfil `dev`, se o SMTP falhar, o link de redefinição de senha é escrito n
 | `AUTH_LOCK_MINUTES` | Não | `15` | `15` | Duração do bloqueio de conta, em minutos |
 | `DB_PORT` / `APP_PORT` | Não | `5432` / `8080` | — | Só no `docker-compose.yaml`: portas publicadas no host |
 | `IT_DB_URL` / `IT_DB_USERNAME` / `IT_DB_PASSWORD` | Não | — | — | Só para testes: Postgres descartável do `LabManagerExternalDatabaseTests` |
+
+#### E-mail real com Gmail
+
+1. Ative a verificação em duas etapas na conta Google e gere uma **Senha de app** em <https://myaccount.google.com/apppasswords>. A senha normal da conta não funciona.
+2. No `.env` (nunca commitado; veja a OPÇÃO B do `.env.example`):
+
+```
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=seu.email@gmail.com
+MAIL_PASSWORD=<senha de app, 16 letras sem espaços>
+MAIL_FROM=seu.email@gmail.com
+MAIL_STARTTLS_REQUIRED=true
+```
 
 ---
 

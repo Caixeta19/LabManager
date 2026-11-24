@@ -29,11 +29,11 @@ public class ReserveController {
     private final ReserveService reserveService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ALUNO', 'PROFESSOR')")
-    @Operation(summary = "Cria nova reserva com status PENDENTE (ALUNO, PROFESSOR)")
+    @PreAuthorize("hasAnyRole('ALUNO', 'PROFESSOR', 'ADMIN')")
+    @Operation(summary = "Cria nova reserva: PENDENTE para ALUNO/PROFESSOR (dentro da janela do laboratório); CONFIRMADA para ADMIN")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Reserva criada (sem token nem código do QR no corpo)"),
-            @ApiResponse(responseCode = "400", description = "Fim antes do início; ERR_LAB_001 - laboratório inativo; ERR_LAB_002 - laboratório em manutenção"),
+            @ApiResponse(responseCode = "400", description = "Fim antes do início; ERR_LAB_001 - laboratório inativo; ERR_LAB_002 - laboratório em manutenção; ERR_RESERVA_004 - fora da janela de reserva do laboratório"),
             @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado"),
             @ApiResponse(responseCode = "403", description = "ERR_FORBIDDEN - papel sem permissão"),
             @ApiResponse(responseCode = "404", description = "Laboratório não encontrado"),
@@ -123,12 +123,12 @@ public class ReserveController {
     // Sem "produces": assim os erros (404, 401) continuam saindo em JSON pelo GlobalExceptionHandler
     @GetMapping("/{id}/qrcode")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Gera a imagem PNG do QR Code da reserva sob demanda (só o dono)")
+    @Operation(summary = "Gera a imagem PNG do QR Code da reserva sob demanda (dono ou ADMIN)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Imagem PNG do QR Code",
                     content = @Content(mediaType = MediaType.IMAGE_PNG_VALUE)),
             @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado"),
-            @ApiResponse(responseCode = "404", description = "Reserva inexistente ou de outro usuário"),
+            @ApiResponse(responseCode = "404", description = "Reserva inexistente ou de outro usuário (exceto para ADMIN)"),
             @ApiResponse(responseCode = "500", description = "ERR_QRCODE_001 - falha ao gerar a imagem")
     })
     public ResponseEntity<byte[]> getQrCodeImage(@PathVariable UUID id) {

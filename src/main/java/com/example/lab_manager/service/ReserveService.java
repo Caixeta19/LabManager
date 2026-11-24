@@ -21,6 +21,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ public class ReserveService {
 
     static final String MSG_NAO_ENCONTRADA = "Reserva não encontrada.";
     static final int DIAS_DE_OCUPACAO = 14;
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");
 
     private final ReserveRepository reserveRepository;
     private final LaboratoryRepository laboratoryRepository;
@@ -59,6 +62,12 @@ public class ReserveService {
         }
 
         User user = currentUserService.getUsuarioAutenticado();
+        boolean admin = user.getType() == UserType.ADMIN;
+
+        // Janela de reserva do laboratório: vale para ALUNO e PROFESSOR; ADMIN ignora
+        if (!admin) {
+            validarJanelaDeReserva(lab, dto.dataHoraInicio(), dto.dataHoraFim());
+        }
 
         // RN11 / RF12
         boolean hasConflict = reserveRepository.existsConflictingReserve(
@@ -75,6 +84,13 @@ public class ReserveService {
                 .dataHoraFim(dto.dataHoraFim())
                 .reason(StringUtils.hasText(dto.reason()) ? dto.reason().trim() : null)
                 .build();
+
+        // Reserva feita pelo ADMIN já nasce confirmada: não passa pelo e-mail de confirmação
+        if (admin) {
+            reserve.setStatus(ReserveStatus.CONFIRMADA);
+            reserve.setDataConfirmacao(LocalDateTime.now(clock));
+            reserve.setEmailConfirmacaoEnviado(true);
+        }
 
         return toDTO(reserveRepository.save(reserve));
     }
@@ -150,15 +166,32 @@ public class ReserveService {
         reserveRepository.save(reserve);
     }
 
-    /** RF14 / decisão 10: só o dono obtém a imagem do QR Code. */
+    /** RF14 / decisão 10: o dono ou o ADMIN obtém a imagem do QR Code. */
     @Transactional(readOnly = true)
     public byte[] generateQrCodeImage(UUID id) {
         Reserve reserve = buscar(id);
         User user = currentUserService.getUsuarioAutenticado();
-        if (!isDono(reserve, user)) {
+        if (!isDono(reserve, user) && user.getType() != UserType.ADMIN) {
             throw new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADA);
         }
         return qrCodeService.gerarImagemPng(reserve.getCodigoQr());
+    }
+
+    /** ERR_RESERVA_004: início e fim no mesmo dia e dentro de [abertura, fechamento] do laboratório. */
+    private static void validarJanelaDeReserva(Laboratory lab, LocalDateTime inicio, LocalDateTime fim) {
+        if (!lab.hasBookingWindow()) {
+            return;
+        }
+        LocalTime abertura = lab.getBookingOpenTime();
+        LocalTime fechamento = lab.getBookingCloseTime();
+        boolean mesmoDia = inicio.toLocalDate().equals(fim.toLocalDate());
+        boolean dentro = !inicio.toLocalTime().isBefore(abertura) && !fim.toLocalTime().isAfter(fechamento);
+        if (!mesmoDia || !dentro) {
+            throw new RegraDeNegocioException(
+                    "Este laboratório só aceita reservas entre " + HORA.format(abertura) + " e "
+                            + HORA.format(fechamento) + ", com início e fim no mesmo dia.",
+                    "ERR_RESERVA_004");
+        }
     }
 
     private Reserve buscar(UUID id) {

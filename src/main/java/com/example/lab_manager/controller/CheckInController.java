@@ -22,7 +22,7 @@ public class CheckInController {
 
     @PostMapping("/{codigoQr}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Realiza check-in (só o dono da reserva, CONFIRMADA e dentro da janela de horário)")
+    @Operation(summary = "Realiza check-in (dono da reserva ou ADMIN; reserva CONFIRMADA e dentro da janela de horário)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Check-in registrado"),
             @ApiResponse(responseCode = "401", description = "Sem token ou token inválido/expirado"),

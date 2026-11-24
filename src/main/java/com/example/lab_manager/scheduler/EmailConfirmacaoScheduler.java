@@ -16,7 +16,8 @@ import java.util.List;
 
 /**
  * RF21 / RN15 / RN16: a cada 60s, envia o e-mail de confirmação das reservas PENDENTE
- * que começam entre agora+55min e agora+65min e ainda não receberam o e-mail.
+ * que começam entre agora e agora+65min e ainda não receberam o e-mail. Assim, reservas
+ * feitas em cima da hora (menos de 1h antes do início) também recebem o e-mail no próximo ciclo.
  * <p>
  * Cada reserva é processada isoladamente: se o SMTP falhar, registra WARN, mantém
  * {@code emailConfirmacaoEnviado = false} (nova tentativa no próximo ciclo) e segue para a próxima.
@@ -26,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmailConfirmacaoScheduler {
 
-    static final Duration INICIO_JANELA = Duration.ofMinutes(55);
+    static final Duration INICIO_JANELA = Duration.ZERO;
     static final Duration FIM_JANELA = Duration.ofMinutes(65);
 
     private final ReserveRepository reserveRepository;

@@ -44,14 +44,14 @@ class SchedulersTest {
     class EmailConfirmacao {
 
         @Test
-        void buscaPendentesNaJanelaDe55a65Minutos() {
+        void buscaPendentesQueComecamDeAgoraAte65Minutos() {
             var job = new EmailConfirmacaoScheduler(reserveRepository, mailService, TestData.CLOCK);
             when(reserveRepository.findParaEnvioDeConfirmacao(any(), any(), any())).thenReturn(List.of());
 
             job.enviarConfirmacoes();
 
             verify(reserveRepository).findParaEnvioDeConfirmacao(
-                    ReserveStatus.PENDENTE, AGORA.plusMinutes(55), AGORA.plusMinutes(65));
+                    ReserveStatus.PENDENTE, AGORA, AGORA.plusMinutes(65));
         }
 
         @Test

@@ -7,14 +7,16 @@ package com.example.lab_manager.enums;
  * PENDENTE   → CANCELADA   (cancelamento sem confirmação)
  * PENDENTE   → EXPIRADA    (job: início passou sem confirmação)
  * CONFIRMADA → CANCELADA   (cancelamento manual)
- * CANCELADA e EXPIRADA são estados finais.
+ * CONFIRMADA → NAO_COMPARECEU (job: a reserva terminou sem check-in)
+ * CANCELADA, EXPIRADA e NAO_COMPARECEU são estados finais.
  * </pre>
  */
 public enum ReserveStatus {
     PENDENTE,
     CONFIRMADA,
     CANCELADA,
-    EXPIRADA;
+    EXPIRADA,
+    NAO_COMPARECEU;
 
     public boolean podeTransicionarPara(ReserveStatus destino) {
         if (destino == null) {
@@ -22,8 +24,8 @@ public enum ReserveStatus {
         }
         return switch (this) {
             case PENDENTE -> destino == CONFIRMADA || destino == CANCELADA || destino == EXPIRADA;
-            case CONFIRMADA -> destino == CANCELADA;
-            case CANCELADA, EXPIRADA -> false;
+            case CONFIRMADA -> destino == CANCELADA || destino == NAO_COMPARECEU;
+            case CANCELADA, EXPIRADA, NAO_COMPARECEU -> false;
         };
     }
 }
